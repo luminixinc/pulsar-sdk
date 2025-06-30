@@ -1,0 +1,28 @@
+{
+  "name": "pulsar-sdk",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Pulsar for Salesforce JSAPI helper with promise based interface and bridge initialization.",
+  "main": "src/pulsar.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
+    "testdetect": "node --experimental-vm-modules ./node_modules/.bin/jest --detectOpenHandles"
+  },
+  "keywords": [
+    "pulsar",
+    "salesforce",
+    "field-service",
+    "jsapi",
+    "bridge"
+  ],
+  "author": "Kevin Jenkins",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}
