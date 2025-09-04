@@ -876,7 +876,7 @@ export class Pulsar {
    * @property {string} orgDefaultCurrencyIsoCode - The currency ISO code configured for the users organization. e.g. "USD"
    * @property {string} orgDefaultCurrencyLocale - The locale to be used for formatting currency for this user. e.g. "en_US"
    * @property {string} organizationid: The Id for the Organization object that this user belongs to. e.g. "00D040000008fvYEAQ"
-   * @property {string} sessionid - The current session Id for this user. e.g. "00D040000008fvY!AQkAQBIydGEBZPbzi5QXKjqTcs6E3hyVXjqGtKDNAiQsHSRK25HOOnuzINS3O5IWVXie87W6nXct7kjm3o2faTm5oloIQ25u"
+   * @property {string} sessionid - The current session Id for this user.
    * @property {string} userDefaultCurrencyIsoCode - The user's default currency ISO code. This takes precedence over the orgDefaultCurrencyIsoCode.
    * @property {string} userFullPhoto - A URL string to the full-sized photo for this user. e.g. "http://127.0.0.1:17014/images/userPhoto/full"
    * @property {string} userSmallPhoto - A URL string to the small-sized photo for this user. e.g. "http://127.0.0.1:17014/images/userPhoto/small"
@@ -2217,32 +2217,6 @@ export class Pulsar {
       }
     });
   }
-
-
-  /**
-   * Displays a Salesforce List View for the specified object.
-   *
-   * @param {string} objectName - The Salesforce object type (e.g., "Account").
-   * @param {string} listViewId - The Id of the Listview to display.
-   * @returns {Promise<object>} - Response from the platform UI.
-  */
-  async viewList(objectName, listViewId) {
-    if (!objectName || typeof objectName !== 'string') {
-      throw new Error('viewList requires a valid objectName string.');
-    }
-    if (!listViewId || typeof listViewId !== 'string') {
-      throw new Error('viewList requires a valid listViewId string.');
-    }
-
-    return this._send({
-      type: 'viewList',
-      object: objectName,
-      data: {
-        listViewId
-      }
-    });
-  }
-
 
   /**
    * Allows the user to select one or more records from a filtered or listview-based selection screen.

@@ -264,30 +264,6 @@ describe('viewList', () => {
     });
   });
 
-  it('throws if objectName is missing', async () => {
-    await expect(() =>
-      pulsar.viewList(undefined, '00Bxx0000018XZTUA2')
-    ).rejects.toThrow('viewList requires a valid objectName string.');
-  });
-
-  it('throws if objectName is not a string', async () => {
-    await expect(() =>
-      pulsar.viewList(123, '00Bxx0000018XZTUA2')
-    ).rejects.toThrow('viewList requires a valid objectName string.');
-  });
-
-  it('throws if listViewId is missing', async () => {
-    await expect(() =>
-      pulsar.viewList('Account')
-    ).rejects.toThrow('viewList requires a valid listViewId string.');
-  });
-
-  it('throws if listViewId is not a string', async () => {
-    await expect(() =>
-      pulsar.viewList('Account', { id: 'bad' })
-    ).rejects.toThrow('viewList requires a valid listViewId string.');
-  });
-
   it('resolves the result from _send', async () => {
     pulsar._send.mockResolvedValue({ result: 'ok' });
 
