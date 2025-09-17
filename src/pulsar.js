@@ -906,6 +906,27 @@ export class Pulsar {
 
 
   /**
+   * Get the list of platform features and their availability.
+   *
+   * @typedef {Object} PlatformFeature
+   * @property {string} featureName - The name of the feature.
+   * @property {"TRUE"|"FALSE"} isAvailable - Whether the feature is available.
+   * @property {string} [value] - Optional string value for the feature, if provided.
+  */
+
+  /**
+   * Calls the JSAPI "getPlatformFeatures" method.
+   *
+   * @returns {Promise<PlatformFeature[]>} - Array of feature objects.
+  */
+  async getPlatformFeatures() {
+    return this._send({
+      type: 'getPlatformFeatures'
+    });
+  }
+
+
+  /**
    * Triggers the generation of a PDF or image file from the current document.
    * This is commonly used for printing or exporting content in Pulsar-enabled apps.
    *

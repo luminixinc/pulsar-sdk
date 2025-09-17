@@ -59,6 +59,7 @@ Use these methods to obtain information about displaying an individual SObject.
 - `getPlatform()` – Get current platform (e.g., iOS, Android, Web).
 - `getDevServerEnabled()` – Check if the dev server is enabled.
 - `getLocation()` – Retrieve current geolocation.
+- `getPlatformFeatures()` - Get the features of the current platform (iOS, Windows, Android).
 
 ### Files and Attachments
 - `createSFFile(parentId, fileName, base64Content, contentType)` – Upload a file.
@@ -1850,6 +1851,50 @@ console.log(`Lat: ${coords.latitude}, Lon: ${coords.longitude}`);
 ---
 
 
+## Method: `getPlatformFeatures()`
+
+### `async getPlatformFeatures(): Promise<PlatformFeature[]>`
+Retrieves information about the features available on the current platform. This is useful for adapting application behavior to optional or platform-specific capabilities.
+
+### Return Type
+`Promise<PlatformFeature[]>` – An array of feature objects. Each feature entry has the following shape:
+| Property      | Type      | Description                                                            |
+| ------------- | --------- | ---------------------------------------------------------------------- |
+| `featureName` | `string`  | The name of the feature (e.g., `"OfflineMode"`, `"DarkTheme"`).        |
+| `isAvailable` | "TRUE" or "FALSE" |  Whether the feature is available on this platform.            |
+| `value`       | `string?` | *(Optional)* A string value with additional details about the feature. |
+
+### Example
+``` js
+await pulsar.init();
+
+const features = await pulsar.getPlatformFeatures();
+
+for (const feature of features) {
+  console.log(`${feature.featureName}: ${feature.isAvailable}`);
+  if (feature.value) {
+    console.log(`  value: ${feature.value}`);
+  }
+}
+```
+
+### Returns
+An array of  `PlatformFeature` objects.
+``` js
+[
+  { "featureName": "OfflineMode", "isAvailable": "TRUE" },
+  { "featureName": "DarkTheme", "isAvailable": "FALSE", "value": "beta" }
+]
+```
+
+### Notes
+* The list of features depends on the underlying Pulsar platform version and runtime context (iOS, Android, Web).
+* If a feature is not supported, it will appear with "isAvailable": "FALSE".
+* Some features may also provide an optional value field, which can contain version numbers, mode identifiers, or other platform-specific information.
+
+---
+
+
 ## Method: `getCustomLabels()`
 
 ### `async getCustomLabels(labelNames: string[], locale?: string): Promise<object>`
@@ -2825,12 +2870,12 @@ const relatedListValues = await Promise.all(
 | `sobject` | `string` | API name of the child object shown in this list. |
 | `sort` | `RelatedListSort[]` | Optional sort configuration (field + order). |
 
-## RelatedListColumn
+## `RelatedListColumn`
 Defines an individual column displayed in a `RelatedList`. Each column corresponds to a field on the child object and includes label, format, and lookup configuration used for rendering and linking.
 
 When using Pulsar to get the value for a column or field in a related list, we should use **always** use the fieldApiName and retrieve the value with `resolveSOQLFieldPath`. This ensures that we get the proper associated value.
 
-### Fields on RelatedListColumn
+### Fields on `RelatedListColumn`
 | Name | Type | Description |
 |------|------|-------------|
 | `field` | `string` | API name of the field, usually in the format `Object.Field`. |
@@ -2839,10 +2884,20 @@ When using Pulsar to get the value for a column or field in a related list, we s
 | `label` | `string` | User-visible label for the column. |
 | `lookupId` | `string` | SOQL path to the lookup ID field used to link to the detail view. |
 
-## PhotoFileMetadata
+## `PlatformFeature`
+The list of platform features and their availability.
+
+### Properties of `PlatformFeature`
+| Property           | Type   | Description                                                 |
+| ------------------ | ------ | ----------------------------------------------------------- |
+| `featureName`      | `string` | The name of the feature.                                  |
+| `isAvailable`      | `string` | `TRUE` if present, `FALSE` otherwise                      |
+| `value`            | `string` | Optional string value for the feature                     |
+
+## `PhotoFileMetadata`
 The `PhotoFileMetadata` is returned by the `cameraPhoto` and `cameraPhotoPicker` methods.
 
-### Properties of PhotoFileMetadata
+### Properties of `PhotoFileMetadata`
 | Property           | Type   | Description                                                 |
 | ------------------ | ------ | ----------------------------------------------------------- |
 | `ContentType`      | `string` | The MIME type of the file (e.g., `image/jpeg`).             |
