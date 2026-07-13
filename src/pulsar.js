@@ -428,8 +428,8 @@ export class Pulsar {
       type: 'getLayout',
       object: objectName,
       data: {
-        ...(recordTypeId && { RecordTypeId: recordTypeId }),
-        ...(!recordTypeId && recordTypeName && { RecordTypeName: recordTypeName }),
+        ...(recordTypeName && { RecordTypeName: recordTypeName }),
+        ...(!recordTypeName && recordTypeId && { RecordTypeId: recordTypeId }),
       }
     });
 

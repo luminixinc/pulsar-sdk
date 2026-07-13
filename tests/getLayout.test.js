@@ -41,7 +41,7 @@ describe('getLayout', () => {
     expect(result).toEqual(mockLayout);
   });
 
-  it('prefers RecordTypeId over RecordTypeName if both are provided', async () => {
+  it('prefers RecordTypeName over RecordTypeId if both are provided', async () => {
     const mockLayout = { layoutSections: [], layoutMode: 'edit' };
     pulsar._send.mockResolvedValue(mockLayout);
 
@@ -51,7 +51,7 @@ describe('getLayout', () => {
       type: 'getLayout',
       object: 'Lead',
       data: {
-        RecordTypeId: '012DEF'
+        RecordTypeName: 'Retail_Lead'
       }
     });
     expect(result).toEqual(mockLayout);
