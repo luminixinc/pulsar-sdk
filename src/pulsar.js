@@ -2398,7 +2398,7 @@ export class Pulsar {
    *
    * @returns {Promise<object>} - A promise that resolves to an object with the following fields:
    *   @property {string} isConnected - `"TRUE"` if the device has network access, `"FALSE"` otherwise.
-   *   @property {string} connectionType - The type of connection (e.g., `"wifi"`, `"cellular"`, `"none"`).
+   *   @property {string} connectionType - The type of connection (e.g., `"Wifi"`, `"Cellular"`, `"None"`).
    *
    * @example
    * const status = await pulsar.getNetworkStatus();

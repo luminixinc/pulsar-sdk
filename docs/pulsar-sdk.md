@@ -2562,7 +2562,7 @@ A `Promise<object>` resolving to an object with:
 | Field            | Type     | Description                                                  |
 | ---------------- | -------- | ------------------------------------------------------------ |
 | `isConnected`    | `string` | `"TRUE"` if network access is available, `"FALSE"` otherwise |
-| `connectionType` | `string` | Type of connection: `"wifi"`, `"cellular"`, or `"none"`      |
+| `connectionType` | `string` | Type of connection: `"Wifi"`, `"Cellular"`, or `"Unknown"`      |
 
 ### Example
 ``` js
