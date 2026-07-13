@@ -81,7 +81,6 @@ export class Pulsar {
       } else if (handlerName === 'syncDataFinished') {
         this.pulsar.addSyncFinishedHandler(handlerFn);
       }
-      console.warn(`Registered embedded-safe handler for ${handlerName} using pulsar object.`);
     } else {
       // Use raw bridge handler
       this.bridge.registerHandler(handlerName, handlerFn);
@@ -112,7 +111,6 @@ export class Pulsar {
       } else if (handlerName === 'syncDataFinished') {
         this.pulsar.removeSyncFinishedHandler();
       }
-      console.warn(`Deregistered embedded-safe handler for ${handlerName} using pulsar object.`);
     } else {
       // Use raw bridge deregistration
       this.bridge.deregisterHandler(handlerName);
