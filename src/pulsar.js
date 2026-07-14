@@ -1649,7 +1649,7 @@ export class Pulsar {
   */
   async setAutosyncStatus(enable) {
 
-    const statusString = enable === true || enable === 'TRUE' ? 'TRUE' : 'FALSE';
+    const statusString = this._isTrue(enable) ? 'TRUE' : 'FALSE';
 
     return this._send({
       type: 'setAutosyncStatus',
@@ -2523,5 +2523,19 @@ export class Pulsar {
         }
       });
     });
+  }
+
+  /**
+   * Internal method to evaluate if an argument is true or not.
+   * @param {any} value The value to interpret.
+   * @returns {boolean} true if the value provided is truthy, false otherwise.
+   */
+  _isTrue(value) {
+    return (
+      value === true ||
+      value === 1 ||
+      (typeof value === 'string' &&
+        ['true', '1'].includes(value.trim().toLowerCase()))
+    );
   }
 }

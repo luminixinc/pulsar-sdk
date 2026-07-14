@@ -146,12 +146,103 @@ describe('Pulsar Autosync Status Methods', () => {
       );
     });
 
+    it ('should send "TRUE" and return "TRUE" when enabling auto-sync with "true"', async () => {
+      pulsar.bridge.send.mockImplementation((req, cb) => {
+        cb({ type: 'setAutosyncStatusResponse', data: 'TRUE' });
+      });
+
+      const result = await pulsar.setAutosyncStatus('true');
+      expect(result).toBe('TRUE');
+      expect(pulsar.bridge.send).toHaveBeenCalledWith(
+        { type: 'setAutosyncStatus', data: 'TRUE' },
+        expect.any(Function)
+      );
+    });
+
+    it ('should send "TRUE" and return "TRUE" when enabling auto-sync with 1', async () => {
+      pulsar.bridge.send.mockImplementation((req, cb) => {
+        cb({ type: 'setAutosyncStatusResponse', data: 'TRUE' });
+      });
+
+      const result = await pulsar.setAutosyncStatus(1);
+      expect(result).toBe('TRUE');
+      expect(pulsar.bridge.send).toHaveBeenCalledWith(
+        { type: 'setAutosyncStatus', data: 'TRUE' },
+        expect.any(Function)
+      );
+    });
+
+    it ('should send "TRUE" and return "TRUE" when enabling auto-sync with 1', async () => {
+      pulsar.bridge.send.mockImplementation((req, cb) => {
+        cb({ type: 'setAutosyncStatusResponse', data: 'TRUE' });
+      });
+
+      const result = await pulsar.setAutosyncStatus("1");
+      expect(result).toBe('TRUE');
+      expect(pulsar.bridge.send).toHaveBeenCalledWith(
+        { type: 'setAutosyncStatus', data: 'TRUE' },
+        expect.any(Function)
+      );
+    });
+
+    it ('should send "TRUE" and return "TRUE" when enabling auto-sync with "tRuE"', async () => {
+      pulsar.bridge.send.mockImplementation((req, cb) => {
+        cb({ type: 'setAutosyncStatusResponse', data: 'TRUE' });
+      });
+
+      const result = await pulsar.setAutosyncStatus('tRuE');
+      expect(result).toBe('TRUE');
+      expect(pulsar.bridge.send).toHaveBeenCalledWith(
+        { type: 'setAutosyncStatus', data: 'TRUE' },
+        expect.any(Function)
+      );
+    });
+
     it('should send "FALSE" and return "FALSE" when disabling auto-sync', async () => {
       pulsar.bridge.send.mockImplementation((req, cb) => {
         cb({ type: 'setAutosyncStatusResponse', data: 'FALSE' });
       });
 
       const result = await pulsar.setAutosyncStatus(false);
+      expect(result).toBe('FALSE');
+      expect(pulsar.bridge.send).toHaveBeenCalledWith(
+        { type: 'setAutosyncStatus', data: 'FALSE' },
+        expect.any(Function)
+      );
+    });
+
+    it('should send "FALSE" and return "FALSE" when disabling auto-sync with any non-truthy arg', async () => {
+      pulsar.bridge.send.mockImplementation((req, cb) => {
+        cb({ type: 'setAutosyncStatusResponse', data: 'FALSE' });
+      });
+
+      const result = await pulsar.setAutosyncStatus('blerg');
+      expect(result).toBe('FALSE');
+      expect(pulsar.bridge.send).toHaveBeenCalledWith(
+        { type: 'setAutosyncStatus', data: 'FALSE' },
+        expect.any(Function)
+      );
+    });
+
+    it('should send "FALSE" and return "FALSE" when disabling auto-sync with 0', async () => {
+      pulsar.bridge.send.mockImplementation((req, cb) => {
+        cb({ type: 'setAutosyncStatusResponse', data: 'FALSE' });
+      });
+
+      const result = await pulsar.setAutosyncStatus(0);
+      expect(result).toBe('FALSE');
+      expect(pulsar.bridge.send).toHaveBeenCalledWith(
+        { type: 'setAutosyncStatus', data: 'FALSE' },
+        expect.any(Function)
+      );
+    });
+
+    it('should send "FALSE" and return "FALSE" when disabling auto-sync with "0"', async () => {
+      pulsar.bridge.send.mockImplementation((req, cb) => {
+        cb({ type: 'setAutosyncStatusResponse', data: 'FALSE' });
+      });
+
+      const result = await pulsar.setAutosyncStatus("0");
       expect(result).toBe('FALSE');
       expect(pulsar.bridge.send).toHaveBeenCalledWith(
         { type: 'setAutosyncStatus', data: 'FALSE' },
