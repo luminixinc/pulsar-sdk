@@ -232,7 +232,6 @@ This is especially useful for listening to sync progress and custom Pulsar event
 ### Behavior
 - In embedded contexts, sync-related events (`syncDataUpdate`, `syncDataFinished`) are registered using this.`pulsar.addSyncDataUpdateHandler()` or `addSyncFinishedHandler()` to avoid interfering with the parent bridge.
 - In native contexts, or for non-sync events, `this.bridge.registerHandler()` is used directly.
-- A warning is emitted if an unsupported sync event is used in embedded mode (e.g., `syncDataStarted`) to prevent unexpected side effects.
 
 ### Supported Events
 | Event Name | Description |
@@ -242,8 +241,6 @@ This is especially useful for listening to sync progress and custom Pulsar event
 | invalidateLayout | Called when layout schema changes — re-fetch with getLayout() |
 | dispatchToHomeApp |	Custom app event routing — see Pulsar docs |
 | custom_oauth | Pulsar 12+ only — fired after custom OAuth flow |
-
-> ⚠️ In embedded contexts, only syncDataUpdate and syncDataFinished are safely supported. Other sync handlers will emit a warning.
 
 ### Example
 ``` js
