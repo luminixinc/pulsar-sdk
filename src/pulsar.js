@@ -880,6 +880,117 @@ export class Pulsar {
     });
   }
 
+  /**
+   * Information about the current Pulsar sync operation.
+   *
+   * @typedef {Object} SyncStatusResult
+   * @property {"TRUE"|"FALSE"} syncrunning - Whether a sync operation is currently in progress.
+   */
+
+  /**
+   * Retrieves information about the current Pulsar sync operation.
+   *
+   * This method reports whether Pulsar is actively performing a sync. It does
+   * not indicate whether automatic syncing is enabled; use
+   * `getAutosyncStatus()` for that configuration value.
+   *
+   * @returns {Promise<SyncStatusResult>} An object indicating whether a sync is currently running.
+   *
+   * @example
+   * const status = await pulsar.syncStatus();
+   *
+   * if (status.syncrunning === 'TRUE') {
+   *   console.log('A sync is currently running.');
+   * } else {
+   *   console.log('No sync is currently running.');
+   * }
+   */
+  async syncStatus() {
+    return this._send({
+      type: 'syncstatus'
+    });
+  }
+
+  /**
+   * Returns whether a Pulsar sync operation is currently running.
+   *
+   * @returns {Promise<boolean>} `true` if a sync is currently running; otherwise `false`.
+   * @throws {Error} If the sync status response does not contain the expected `syncrunning` field.
+   */
+  async syncRunning() {
+    const status = await this.syncStatus();
+
+    if (
+      typeof status !== 'object' ||
+      status === null ||
+      !Object.hasOwn(status, 'syncrunning')
+    ) {
+      throw new Error(
+        'Unexpected response format from syncStatus. Expected a syncrunning field.'
+      );
+    }
+
+    return this._isTrue(status.syncrunning);
+  }
+
+    /**
+   * Information about the most recent Pulsar sync operation.
+   *
+   * All values are returned as strings, including counts, durations, and
+   * boolean-like values such as `"YES"` and `"NO"`.
+   *
+   * @typedef {Object} SyncInfoResult
+   * @property {string} lastfailedsync - Timestamp of the most recent failed sync.
+   * @property {string} lastsuccessfulsync - Timestamp of the most recent successful sync.
+   * @property {string} previoussynctime - Timestamp reported by Pulsar for the previous sync.
+   * @property {string} lastsyncdownloadspeed - Download speed reported for the most recent sync.
+   * @property {string} lastsyncduration - Duration reported for the most recent sync.
+   * @property {string} lastsyncsuccess - Whether the most recent sync succeeded, typically `"YES"` or `"NO"`.
+   * @property {string} lastsyncuploadspeed - Upload speed reported for the most recent sync.
+   * @property {string} localchangespendingcount - Number of local changes still pending after the sync.
+   * @property {string} localcreatedcount - Number of locally created records processed by the sync.
+   * @property {string} localdeletedcount - Number of locally deleted records processed by the sync.
+   * @property {string} localupdatedcount - Number of local update operations processed by the sync.
+   * @property {string} localupdateduniquecount - Number of unique locally updated records processed by the sync.
+   * @property {string} metadatasyncduration - Duration reported for the metadata-sync portion of the operation.
+   * @property {string} metadatasyncperformed - Whether metadata sync was performed, typically `"YES"` or `"NO"`.
+   * @property {string} reachabilitysyncduration - Duration reported for the reachability-sync portion of the operation.
+   * @property {string} reachabilitysyncperformed - Whether reachability sync was performed, typically `"YES"` or `"NO"`.
+   * @property {string} refreshduration - Duration reported for the refresh portion of the sync.
+   * @property {string} refreshperformed - Whether a refresh was performed, typically `"YES"` or `"NO"`.
+   * @property {string} schemachanged - Whether the Salesforce schema changed, typically `"YES"` or `"NO"`.
+   * @property {string} serverintegratedcount - Number of server records integrated into the local database.
+   * @property {string} serverprocessedcount - Number of server records processed during the sync.
+   * @property {string} serverprocessedobjectcountmap - Object-specific processed counts as reported by Pulsar.
+   * @property {string} syncdomaintype - Domain type used for the sync, such as `"all"`.
+   * @property {string} syncgeneration - Sync generation reported by Pulsar.
+   * @property {string} syncpasscount - Number of sync passes performed.
+   * @property {string} syncresumed - Whether the sync resumed a previous operation, typically `"YES"` or `"NO"`.
+   * @property {string} syncwindowtype - Sync window type, such as `"initial"`.
+   */
+
+  /**
+   * Retrieves diagnostic and result information about the most recent Pulsar
+   * sync operation.
+   *
+   * This method reports information about the previously completed or attempted
+   * sync. To determine whether a sync is currently running, use `syncStatus()`
+   * or `syncRunning()`.
+   *
+   * @returns {Promise<SyncInfoResult>} Information reported for the most recent sync operation.
+   *
+   * @example
+   * const info = await pulsar.syncInfo();
+   *
+   * console.log('Last sync succeeded:', info.lastsyncsuccess);
+   * console.log('Last successful sync:', info.lastsuccessfulsync);
+   * console.log('Server records processed:', info.serverprocessedcount);
+   */
+  async syncInfo() {
+    return this._send({
+      type: 'syncinfo'
+    });
+  }
 
   /**
    * Attempts to interrupt an active sync process.
