@@ -236,12 +236,12 @@ export class Pulsar {
    * console.log(accounts);
    */
   async soqlQuery(query) {
-    if (!query || typeof query !== 'string') {
+    if (typeof query !== 'string' || !query.trim()) {
       throw new Error('SOQL query must be a valid string.');
     }
 
     return this._send({
-      type: "soqlquery",
+      type: 'soqlquery',
       data: { query }
     });
   }
