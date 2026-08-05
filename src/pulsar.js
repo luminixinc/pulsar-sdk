@@ -194,19 +194,57 @@ export class Pulsar {
    * @param {string} query - SQLite SELECT query string
    * @returns {Promise<object[]>} - Array of matching records
    */
-    async select(objectName, query) {
-      if (!query || typeof query !== 'string') {
-        throw new Error('Select query must be a valid SQLite string.');
-      }
-
-      return this._send({
-        type: 'select',
-        object: objectName,
-        data: {
-          query
-        }
-      });
+  async select(objectName, query) {
+    if (!query || typeof query !== 'string') {
+      throw new Error('Select query must be a valid SQLite string.');
     }
+
+    return this._send({
+      type: 'select',
+      object: objectName,
+      data: {
+        query
+      }
+    });
+  }
+
+  /**
+   * @typedef {Object} SOQLQueryResult
+   * @property {number} totalSize - Total number of matching records.
+   * @property {boolean} done - Whether the complete result has been returned.
+   * @property {object[]} records - Records returned by the query.
+    */
+  /**
+   * Executes a Salesforce Object Query Language (SOQL) query against the
+   * currently connected Salesforce org.
+   *
+   * Unlike `select()`, which queries Pulsar's local SQLite database, this
+   * method executes the query against Salesforce using SOQL syntax.
+   *
+   * The query must be a complete SOQL statement, including the fields to
+   * retrieve and the SObject specified in the `FROM` clause.
+   *
+   * @param {string} query - A complete SOQL query string.
+   * @returns {Promise<SOQLQueryResult>} The Salesforce SOQL query result.
+   * @throws {Error} If `query` is missing or is not a string.
+   *
+   * @example
+   * const accounts = await pulsar.soqlQuery(
+   *   "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology'"
+   * );
+   *
+   * console.log(accounts);
+   */
+  async soqlQuery(query) {
+    if (!query || typeof query !== 'string') {
+      throw new Error('SOQL query must be a valid string.');
+    }
+
+    return this._send({
+      type: "soqlquery",
+      data: { query }
+    });
+  }
 
   /**
    * Represents the full DescribeLayout metadata returned by `pulsar.getLayout()`.
