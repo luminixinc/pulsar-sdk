@@ -910,6 +910,95 @@ if (status.syncrunning === 'TRUE') {
 
 ---
 
+## Method: `syncRunning()`
+
+### `async syncRunning(): Promise<boolean>`
+
+Returns whether a Pulsar sync operation is currently running.
+
+This is a convenience wrapper around `syncStatus()`. The `syncStatus()` response contains a `syncrunning` field represented using Pulsar’s string boolean format, such as `"TRUE"` or `"FALSE"`. `syncRunning()` converts that value into a JavaScript boolean.
+
+Use this method when your application only needs to know whether a sync is active and does not need the complete sync-status response.
+
+### Parameters
+
+None.
+
+### Returns
+
+A `Promise<boolean>` resolving to:
+
+| Value   | Description                                    |
+| ------- | ---------------------------------------------- |
+| `true`  | A Pulsar sync operation is currently running.  |
+| `false` | No Pulsar sync operation is currently running. |
+
+### Example
+
+```js
+const isSyncing = await pulsar.syncRunning();
+
+if (isSyncing) {
+  console.log('A Pulsar sync is currently running.');
+} else {
+  console.log('No Pulsar sync is currently running.');
+}
+```
+
+### Example: Preventing a duplicate sync
+
+```js
+if (await pulsar.syncRunning()) {
+  console.log('A sync is already in progress.');
+} else {
+  await pulsar.syncData();
+}
+```
+
+### Behavior
+
+Internally, this method calls `syncStatus()` and converts the returned `syncrunning` value into a JavaScript boolean.
+
+A response such as:
+
+```json
+{
+  "syncrunning": "TRUE"
+}
+```
+
+is returned from `syncRunning()` as:
+
+```js
+true
+```
+
+Similarly:
+
+```json
+{
+  "syncrunning": "FALSE"
+}
+```
+
+is returned as:
+
+```js
+false
+```
+
+### Notes
+
+* This method does not start, stop, or interrupt a sync.
+* Use `syncData()` to initiate a sync.
+* Use `interruptSync()` to attempt to stop an active sync.
+* Use `syncStatus()` when you need the original sync-status response.
+* Use `syncInfo()` to retrieve information about the most recent sync operation.
+* Use `getAutosyncStatus()` to determine whether automatic syncing is enabled.
+* Errors encountered while retrieving the sync status are propagated to the caller.
+
+---
+
 ## Method: `syncInfo()`
 
 ### `async syncInfo(): Promise<SyncInfoResult>`
