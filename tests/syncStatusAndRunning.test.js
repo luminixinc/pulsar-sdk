@@ -1,4 +1,4 @@
-import { Pulsar } from "../src/pulsar";
+import { Pulsar } from '../src/pulsar';
 import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 
 describe('Pulsar.syncRunning()', () => {
