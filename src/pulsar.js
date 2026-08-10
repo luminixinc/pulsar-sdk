@@ -152,21 +152,39 @@ export class Pulsar {
   }
 
   /**
-   * Update a Salesforce record (must include Id in fields)
-   * @param {string} objectName - Name of the SObject
-   * @param {object} fields - Fields to update (must include Id)
-   * @returns {Promise<string>} - The Id of the updated record.
+   * Update a single Salesforce record.
+   *
+   * @param {string} objectName - Name of the SObject.
+   * @param {string} id - Salesforce Id of the record to update.
+   * @param {object} fields - Fields and values to update.
+   * @param {object} [args] - Optional arguments, such as skipLayoutRequiredFieldCheck.
+   * @returns {Promise<string>} The Id of the updated record.
    */
-  async update(objectName, fields) {
+  async update(objectName, id, fields = {}, args = {}) {
+    if (!objectName || typeof objectName !== 'string') {
+      throw new Error('Update requires a valid objectName string.');
+    }
 
-    if (!fields.Id) {
-      throw new Error(`Update requires 'Id' field.`);
+    if (!id || typeof id !== 'string') {
+      throw new Error(`Update requires a valid 'id' string.`);
+    }
+
+    if (
+      typeof fields !== 'object' ||
+      fields === null ||
+      Array.isArray(fields)
+    ) {
+      throw new Error('Update requires a valid fields object.');
     }
 
     return this._send({
       type: 'update',
       object: objectName,
-      data: fields
+      data: {
+        ...fields,
+        Id: id
+      },
+      args
     });
   }
 
