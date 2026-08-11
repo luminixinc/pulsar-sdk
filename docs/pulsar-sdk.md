@@ -2035,26 +2035,43 @@ await pulsar.deleteSFFile(['069abc123456789', '069def987654321']);
 
 ## Method: `updateQuery()`
 
-### `async updateQuery(objectName: string, query: string): Promise<object>`
-Executes a raw **SQLlite UPDATE query** against Pulsar’s local database for a specific Salesforce SObject. This method bypasses standard validation and layout checks, allowing **direct, low-level manipulation** of cached records.
+### `async updateQuery(objectName: string, query: string): Promise<PulsarResponse>`
 
-> ⚠️ **Use with caution** — this API operates outside of typical create/update flows and does not perform standard validation or relationship enforcement. It is intended for internal tools, testing, or controlled data transformations in offline mode.
+Executes a raw SQLite `UPDATE` query against Pulsar's local database for a specific Salesforce SObject.
+
+Unlike `update()`, this method operates directly on Pulsar's local SQLite database using an SQL statement. It is intended for cases where a direct local database update is necessary.
+
+Because `updateQuery()` may return additional response information, including supplemental errors, this method returns the complete Pulsar JSAPI response rather than only the response's `data` value.
+
+> ⚠️ **Use with caution:** `updateQuery()` performs a direct local database operation and bypasses the normal `create()` and `update()` request flow.
 
 ### Parameters
-| Parameter    | Type     | Required | Description                                           |
-| ------------ | -------- | -------- | ----------------------------------------------------- |
-| `objectName` | `string` | ✅       | The API name of the SObject to update (e.g., `"Account"`, `"Contact"`) |
-| `query`      | `string` | ✅       | A raw SQL-style `UPDATE` query string (e.g., `"UPDATE Account SET Status__c = 'Active' WHERE Industry = 'Tech'"`) |
+
+| Parameter    | Type     | Required | Description                                                                                                    |
+| ------------ | -------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `objectName` | `string` | ✅        | The API name of the Salesforce SObject whose local table is being updated, such as `"Account"` or `"Contact"`. |
+| `query`      | `string` | ✅        | A SQLite `UPDATE` statement to execute against Pulsar's local database.                                        |
 
 ### Returns
-A `Promise<object>` that resolves to a response object confirming execution:
-``` json
-{ "data": "success" }
-```
-or containing error details.
+
+A `Promise<PulsarResponse>` resolving to the complete response returned by Pulsar.
+
+The response contains the following fields:
+
+| Field    | Type                    | Description                                                                                              |
+| -------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `type`   | `string`                | The Pulsar JSAPI response type, such as `"updateQueryResponse"`.                                         |
+| `data`   | `any`                   | The primary result of the operation. For a successful `updateQuery()` operation this may be `"success"`. |
+| `args`   | `object`                | Optional additional response metadata provided by Pulsar.                                                |
+| `errors` | `PulsarResponseError[]` | Optional errors reported while processing the request.                                                   |
+
+The `errors` property is supplemental response information. Its presence does not necessarily mean that the entire JSAPI request failed.
+
+A bridge response whose `type` is `"error"` causes the returned promise to reject instead.
 
 ### Example
-``` js
+
+```js
 await pulsar.init();
 
 const result = await pulsar.updateQuery(
@@ -2062,14 +2079,103 @@ const result = await pulsar.updateQuery(
   "UPDATE Account SET Status__c = 'Active' WHERE Industry = 'Technology'"
 );
 
-console.log(result); // { data: 'success' }
+console.log(result.data);
+
+if (result.errors?.length) {
+  console.warn('Update completed with errors:', result.errors);
+}
+```
+
+### Example successful response
+
+```json
+{
+  "type": "updateQueryResponse",
+  "data": "success"
+}
+```
+
+### Example response containing supplemental errors
+
+```json
+{
+  "type": "updateQueryResponse",
+  "data": "success",
+  "errors": [
+    {
+      "errorCode": "ENTITY_IS_LOCKED",
+      "message": "The record could not be processed because it is locked."
+    }
+  ]
+}
+```
+
+Applications using `updateQuery()` should inspect `errors` when the individual processing results are important:
+
+```js
+const result = await pulsar.updateQuery(
+  'Account',
+  "UPDATE Account SET Status__c = 'Active' WHERE Industry = 'Technology'"
+);
+
+if (result.errors?.length) {
+  for (const error of result.errors) {
+    console.error(
+      error.errorCode,
+      error.message
+    );
+  }
+}
+```
+
+### Error handling
+
+There are two distinct kinds of errors to consider.
+
+#### Request failure
+
+If Pulsar returns a JSAPI response whose `type` is `"error"`, the SDK rejects the promise:
+
+```js
+try {
+  await pulsar.updateQuery(
+    'Account',
+    "UPDATE Account SET Status__c = 'Active'"
+  );
+} catch (error) {
+  console.error('updateQuery request failed:', error);
+}
+```
+
+#### Supplemental response errors
+
+A non-error response may also include an `errors` array.
+
+These errors do not cause `updateQuery()` to reject automatically:
+
+```js
+const result = await pulsar.updateQuery(
+  'Account',
+  "UPDATE Account SET Status__c = 'Active'"
+);
+
+if (result.errors?.length) {
+  console.warn(
+    'The request completed with reported errors:',
+    result.errors
+  );
+}
 ```
 
 ### Notes
-- This method only modifies the local Pulsar database.
-- It does not sync changes back to Salesforce automatically — you must call `syncData()` if needed.
-- **No validation, triggers, or roll-ups are processed**.
-- Use when `update()` or `create()` are too restrictive for batch edits or prototyping.
+
+* `updateQuery()` operates against Pulsar's local SQLite database.
+* The query must use SQLite syntax, not SOQL.
+* The method returns the complete Pulsar response so that fields such as `errors` remain available.
+* The `errors` array may be present even when the response itself is not a `type: "error"` response.
+* A `type: "error"` response still causes the SDK promise to reject.
+* Use `update()` when you want the normal Pulsar record-update behavior instead of issuing a raw SQLite statement.
+* Use `select()` for read-only SQLite queries.
 
 ---
 

@@ -1502,30 +1502,34 @@ async syncData(options = {}) {
   /**
    * Executes a raw SQLite update query on Pulsar's local database.
    *
-   * This method allows direct manipulation of cached Salesforce data in Pulsar using SQLite syntax.
-   * It bypasses standard validation and should be used with caution.
-   *
-   * @param {string} objectName - The name of the Salesforce SObject to update (e.g., 'Account').
-   * @param {string} query - A raw SQLite UPDATE query string (e.g., "UPDATE Account SET Status__c = 'Active' WHERE Type = 'Customer'").
-   * @returns {Promise<object>} - The response from the local database update, typically `{ data: 'success' }` or includes error info.
-   * @throws {Error} If the bridge is uninitialized or inputs are invalid.
-  */
+   * @param {string} objectName - Salesforce SObject API name.
+   * @param {string} query - SQLite UPDATE query.
+   * @returns {Promise<PulsarResponse>} Full update response, including any
+   *   errors reported while processing or synchronizing the update.
+   */
   async updateQuery(objectName, query) {
-
     if (!objectName || typeof objectName !== 'string') {
-      throw new Error('updateQuery requires a valid objectName string.');
-    }
-    if (!query || typeof query !== 'string') {
-      throw new Error('updateQuery requires a valid SQLite query string.');
+      throw new Error(
+        'updateQuery requires a valid objectName string.'
+      );
     }
 
-    return this._send({
-      type: 'updateQuery',
-      object: objectName,
-      data: {
-        query
-      }
-    });
+    if (!query || typeof query !== 'string') {
+      throw new Error(
+        'updateQuery requires a valid SQLite query string.'
+      );
+    }
+
+    return this._send(
+      {
+        type: 'updateQuery',
+        object: objectName,
+        data: {
+          query
+        }
+      },
+      true
+    );
   }
 
   /**
@@ -2754,29 +2758,66 @@ async syncData(options = {}) {
    ****************************** */
 
   /**
-   * Internal method to send a Pulsar JSAPI request via the bridge.
+   * An error reported as part of a Pulsar JSAPI response.
    *
-   * @param {object} request - Pulsar JSAPI request payload.
-   * @param {boolean} [returnFullResponse=false] - Return the complete bridge
-   *   response instead of only response.data.
-   * @returns {Promise<any>} Response data, or the full response when requested.
+   * A response may contain errors even when the request itself returns a
+   * successful response type.
+   *
+   * @typedef {Object} PulsarResponseError
+   * @property {string} [errorCode] - Pulsar or Salesforce error code.
+   * @property {string} message - Human-readable description of the error.
    */
-  _send(request, returnFullResponse = false) {
+
+  /**
+   * Full response returned by the Pulsar JSAPI bridge.
+   *
+   * Most SDK methods return only `data`. Methods requiring response metadata
+   * may request the complete response from `_send()`.
+   *
+   * @typedef {Object} PulsarResponse
+   * @property {string} type - Pulsar response type.
+   * @property {string} [object] - SObject associated with the response.
+   * @property {*} data - Primary response data.
+   * @property {Object} [args] - Additional response metadata.
+   * @property {PulsarResponseError[]} [errors] - Errors reported while
+   *   processing the request.
+   */
+
+  /**
+   * Internal method that Sends a Pulsar JSAPI request through the bridge.
+   *
+   * Responses whose `type` is `"error"` reject the returned Promise.
+   *
+   * Successful responses may also contain an `errors` array. These errors are
+   * not treated as transport/request failures because Pulsar may return useful
+   * response data alongside them. Callers requiring this metadata should set
+   * `sendFullResponse` to `true`.
+   *
+   * @param {object} request - Pulsar JSAPI request.
+   * @param {boolean} [sendFullResponse=false] - When true, resolve with the
+   *   complete Pulsar response rather than only `response.data`.
+   * @returns {Promise<*>|Promise<PulsarResponse>}
+   */
+  _send(request, sendFullResponse = false) {
     return new Promise((resolve, reject) => {
       if (!this.bridge) {
         return reject(
-          new Error('Pulsar bridge not initialized. Call init() first.')
+          new Error(
+            'Pulsar bridge not initialized. Call init() first.'
+          )
         );
       }
 
       this.bridge.send(request, response => {
         if (response.type === 'error') {
           reject(
-            new Error(response.data || 'Unknown Pulsar JSAPI error')
+            new Error(
+              response.data || 'Unknown Pulsar JSAPI error'
+            )
           );
         } else {
           resolve(
-            returnFullResponse
+            sendFullResponse
               ? response
               : response.data
           );
