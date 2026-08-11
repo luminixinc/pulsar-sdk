@@ -2563,16 +2563,61 @@ async syncData(options = {}) {
     });
   }
 
-
   /**
    * Retrieves the current online/offline status of the Pulsar client.
    *
-   * @returns {Promise<object>} - A promise that resolves to an object with `online` set to `true` or `false`.
+   * @returns {Promise<boolean>} - A promise that resolves to true if we are operating online and false otherwise.
   */
   async getOnlineStatus() {
-    return this._send({
-      type: 'getOnlineStatus'
-    }).then( result => { return result === 'TRUE'; });
+    const status = await this.getOnlineStatusInfo();
+    return status.isOnline;
+  }
+
+  /**
+   * Detailed information about Pulsar's current online state.
+   *
+   * @typedef {Object} OnlineStatusResult
+   * @property {boolean} isOnline - Whether Pulsar is currently operating online.
+   * @property {boolean} canSync - Whether Pulsar can currently perform a sync.
+   * @property {boolean} hasConnectivity - Whether the device currently has network connectivity.
+   * @property {number} numUnpushedChanges - Number of local changes waiting to be pushed.
+   * @property {boolean} onlineEnabled - Pulsar's configured online-mode state.
+   * @property {boolean} offlineWithSync - Whether forced-offline-with-sync mode is enabled.
+   * @property {boolean} autosyncEnabled - Whether automatic syncing is enabled.
+   * @property {boolean} syncUserInteractionNeeded - Whether user action is required to continue syncing.
+   */
+
+  /**
+   * Retrieves detailed information about Pulsar's current online state.
+   *
+   * Pulsar's online state is not the same as physical network connectivity.
+   * Pulsar may report itself offline even when network connectivity exists,
+   * such as when the user has enabled Work Offline or local changes are pending.
+   *
+   * @returns {Promise<OnlineStatusResult>} Detailed Pulsar online-status information.
+   */
+  async getOnlineStatusInfo() {
+    const response = await this._send(
+      {
+        type: 'getOnlineStatus'
+      },
+      true
+    );
+
+    const args = response.args ?? {};
+
+    return {
+      isOnline: this._isTrue(args.isOnline ?? response.data),
+      canSync: this._isTrue(args.canSync),
+      hasConnectivity: this._isTrue(args.hasConnectivity),
+      numUnpushedChanges: Number(args.numUnpushedChanges ?? 0),
+      onlineEnabled: this._isTrue(args.onlineEnabled),
+      offlineWithSync: this._isTrue(args.offlineWithSync),
+      autosyncEnabled: this._isTrue(args.autosyncEnabled),
+      syncUserInteractionNeeded: this._isTrue(
+        args.syncUserInteractionNeeded
+      )
+    };
   }
 
   /**
@@ -2594,7 +2639,6 @@ async syncData(options = {}) {
       data: online ? 'TRUE' : 'FALSE'
     }).then( result => { return result === 'TRUE'; });
   }
-
 
   /**
    * Retrieves the current network connectivity status from the Pulsar runtime.
@@ -2710,19 +2754,32 @@ async syncData(options = {}) {
    ****************************** */
 
   /**
-   * Internal method to send a Pulsar JSAPI request via the bridge
-   * @param {object} request - Pulsar JSAPI request payload
-   * @returns {Promise<object>} - Response data or error
+   * Internal method to send a Pulsar JSAPI request via the bridge.
+   *
+   * @param {object} request - Pulsar JSAPI request payload.
+   * @param {boolean} [returnFullResponse=false] - Return the complete bridge
+   *   response instead of only response.data.
+   * @returns {Promise<any>} Response data, or the full response when requested.
    */
-  _send(request) {
+  _send(request, returnFullResponse = false) {
     return new Promise((resolve, reject) => {
-      if (!this.bridge) return reject(new Error('Pulsar bridge not initialized. Call init() first.'));
+      if (!this.bridge) {
+        return reject(
+          new Error('Pulsar bridge not initialized. Call init() first.')
+        );
+      }
 
-      this.bridge.send(request, (response) => {
+      this.bridge.send(request, response => {
         if (response.type === 'error') {
-          reject(new Error(response.data || 'Unknown Pulsar JSAPI error'));
+          reject(
+            new Error(response.data || 'Unknown Pulsar JSAPI error')
+          );
         } else {
-          resolve(response.data);
+          resolve(
+            returnFullResponse
+              ? response
+              : response.data
+          );
         }
       });
     });
