@@ -230,6 +230,7 @@ export class Pulsar {
    * @typedef {Object} SOQLQueryResult
    * @property {number} totalSize - Total number of matching records.
    * @property {boolean} done - Whether the complete result has been returned.
+   * @property {string} nextRecordsUrl - A Url to a Salesforce services endpoint that will show the next batch of query results. Property authentication may be required.
    * @property {object[]} records - Records returned by the query.
     */
   /**
@@ -258,10 +259,18 @@ export class Pulsar {
       throw new Error('SOQL query must be a valid string.');
     }
 
-    return this._send({
+    const data = await this._send({
       type: 'soqlquery',
       data: { query }
     });
+
+    if (!data || typeof data !== 'object' || !data.response) {
+      throw new Error(
+        'Unexpected response format from soqlQuery. Expected a response field.'
+      );
+    }
+
+    return data.response;
   }
 
   /**
