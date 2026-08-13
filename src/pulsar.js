@@ -664,6 +664,39 @@ export class Pulsar {
 
 
   /**
+   * A field configured in a Salesforce object's search layout.
+   *
+   * @typedef {Object} SearchLayoutField
+   * @property {string} label - Display label for the field.
+   * @property {string} targetObject - API name of the SObject targeted by the field.
+   * @property {string} name - Name of the search layout field.
+   * @property {string} field - API name of the Salesforce field.
+   */
+
+  /**
+   * Retrieves the fields configured in Salesforce's search layout for an SObject.
+   *
+   * @param {string} objectName - API name of the SObject (e.g., 'Account', 'Contact').
+   * @returns {Promise<SearchLayoutField[]>} Fields configured in the object's search layout.
+   * @throws {Error} If objectName is missing or is not a string.
+   */
+  async getSearchLayoutFields(objectName) {
+    if (!objectName || typeof objectName !== 'string') {
+      throw new Error(
+        'getSearchLayoutFields requires a valid objectName string.'
+      );
+    }
+
+    const result = await this._send({
+      type: 'getSearchLayoutFields',
+      object: objectName
+    });
+
+    return result?.searchLayoutFields ?? [];
+  }
+
+
+  /**
    * DescribeSObjectResult is returned by getSObjectSchema. It represents the schema for an SObject.
    *
    * @typedef {Object} DescribeSObjectResult
@@ -2381,8 +2414,6 @@ async syncData(options = {}) {
       data: { 'listviewid': listviewId }
     });
   }
-
-
 
   /**
    * Displays a confirmation prompt when the user attempts to leave the page.

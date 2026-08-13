@@ -49,6 +49,7 @@ Use these methods to obtain information about displaying an individual SObject.
 - `getLayoutSections(objectName)` – Get layout sections only.
 - `getLayoutFields(objectName)` – Get layout fields (used in layout sections).
 - `getCompactLayoutFields(objectName)` – Fields shown in compact view.
+- `getSearchLayoutFields(objectName)` – Get fields configured in the object's Salesforce search layout.
 - `getSObjectSchema(objectName)` – Get metadata for an SObject.
 - `getPicklist(objectName, fieldName)` – Get filtered picklist values.
 - `getUnfilteredPicklist(objectName, fieldName)` – Get all picklist values.
@@ -847,6 +848,93 @@ console.log('Compact layout fields:', fields);
 - If both `RecordTypeName` and `RecordTypeId` are provided, the RecordTypeName takes precedence.
 - This method does not return layout positioning or UI sections — only field names in order of appearance.
 ---
+
+
+# `pulsar-sdk.md` — getSearchLayoutFields
+
+## Method: `getSearchLayoutFields()`
+
+### `async getSearchLayoutFields(objectName: string): Promise<SearchLayoutField[]>`
+
+Retrieves the fields configured in Salesforce's **search layout** for the specified SObject.
+
+Search layouts determine which fields Salesforce uses when presenting search results for an object.
+
+The underlying Pulsar API returns these fields inside a `searchLayoutFields` property. The SDK simplifies this response and returns the `searchLayoutFields` array directly.
+
+### Parameters
+
+| Parameter    | Type     | Required | Description                                                             |
+| ------------ | -------- | -------- | ----------------------------------------------------------------------- |
+| `objectName` | `string` | ✅        | API name of the Salesforce SObject, such as `"Account"` or `"Contact"`. |
+
+### Returns
+
+A `Promise<SearchLayoutField[]>` resolving directly to the array of fields configured in the object's search layout.
+
+Each `SearchLayoutField` may contain:
+
+| Field          | Type     | Description                                    |
+| -------------- | -------- | ---------------------------------------------- |
+| `label`        | `string` | Display label for the field.                   |
+| `targetObject` | `string` | API name of the SObject targeted by the field. |
+| `name`         | `string` | Name of the search-layout field.               |
+| `field`        | `string` | API name of the Salesforce field.              |
+
+### Example
+
+```js
+await pulsar.init();
+
+const fields = await pulsar.getSearchLayoutFields('Account');
+
+for (const field of fields) {
+  console.log(`${field.label}: ${field.field}`);
+}
+```
+
+### Sample Output
+
+```json
+[
+  {
+    "label": "Account Name",
+    "targetObject": "Account",
+    "name": "Name",
+    "field": "Name"
+  },
+  {
+    "label": "Phone",
+    "targetObject": "Account",
+    "name": "Phone",
+    "field": "Phone"
+  }
+]
+```
+
+### Empty Search Layout
+
+If Pulsar does not return a `searchLayoutFields` property, the SDK returns an empty array:
+
+```js
+const fields = await pulsar.getSearchLayoutFields('Account');
+
+if (fields.length === 0) {
+  console.log('No search layout fields were returned.');
+}
+```
+
+### Notes
+
+* The method returns the search-layout field array directly rather than the underlying `{ searchLayoutFields: [...] }` wrapper.
+* Search layout fields are distinct from the fields returned by `getLayoutFields()`.
+* `getLayoutFields()` describes fields used in the object's record layout.
+* `getCompactLayoutFields()` describes fields used in the object's compact layout.
+* `getSearchLayoutFields()` describes fields used by Salesforce for the object's search layout.
+* Field order is preserved from the Pulsar response.
+
+---
+
 
 ## Method: `getSObjectSchema()`
 
