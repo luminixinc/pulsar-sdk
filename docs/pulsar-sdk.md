@@ -93,7 +93,9 @@ Use these methods to obtain information about displaying an individual SObject.
 - `getSetting(settingKey)` – Retrieve a stored setting value.
 - `getSettingAttachment(settingKey)` – Get a file stored as a setting.
 - `getAutosyncStatus()` / `setAutosyncStatus()` – Enable/disable automatic sync.
-- `getOnlineStatus()` / `setOnlineStatus()` – Read/write online status.
+- `getOnlineStatus()` – Check whether Pulsar is currently operating online.
+- `getOnlineStatusInfo()` – Retrieve detailed information about Pulsar's online, connectivity, sync, and pending-change state.
+- `setOnlineStatus(online)` – Request that Pulsar operate in online or offline mode.
 
 ### Field Service
 - `getFSLTemplate(templateId: string, templateName: string)` - Get service report templates.
@@ -2035,26 +2037,43 @@ await pulsar.deleteSFFile(['069abc123456789', '069def987654321']);
 
 ## Method: `updateQuery()`
 
-### `async updateQuery(objectName: string, query: string): Promise<object>`
-Executes a raw **SQLlite UPDATE query** against Pulsar’s local database for a specific Salesforce SObject. This method bypasses standard validation and layout checks, allowing **direct, low-level manipulation** of cached records.
+### `async updateQuery(objectName: string, query: string): Promise<PulsarResponse>`
 
-> ⚠️ **Use with caution** — this API operates outside of typical create/update flows and does not perform standard validation or relationship enforcement. It is intended for internal tools, testing, or controlled data transformations in offline mode.
+Executes a raw SQLite `UPDATE` query against Pulsar's local database for a specific Salesforce SObject.
+
+Unlike `update()`, this method operates directly on Pulsar's local SQLite database using an SQL statement. It is intended for cases where a direct local database update is necessary.
+
+Because `updateQuery()` may return additional response information, including supplemental errors, this method returns the complete Pulsar JSAPI response rather than only the response's `data` value.
+
+> ⚠️ **Use with caution:** `updateQuery()` performs a direct local database operation and bypasses the normal `create()` and `update()` request flow.
 
 ### Parameters
-| Parameter    | Type     | Required | Description                                           |
-| ------------ | -------- | -------- | ----------------------------------------------------- |
-| `objectName` | `string` | ✅       | The API name of the SObject to update (e.g., `"Account"`, `"Contact"`) |
-| `query`      | `string` | ✅       | A raw SQL-style `UPDATE` query string (e.g., `"UPDATE Account SET Status__c = 'Active' WHERE Industry = 'Tech'"`) |
+
+| Parameter    | Type     | Required | Description                                                                                                    |
+| ------------ | -------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `objectName` | `string` | ✅        | The API name of the Salesforce SObject whose local table is being updated, such as `"Account"` or `"Contact"`. |
+| `query`      | `string` | ✅        | A SQLite `UPDATE` statement to execute against Pulsar's local database.                                        |
 
 ### Returns
-A `Promise<object>` that resolves to a response object confirming execution:
-``` json
-{ "data": "success" }
-```
-or containing error details.
+
+A `Promise<PulsarResponse>` resolving to the complete response returned by Pulsar.
+
+The response contains the following fields:
+
+| Field    | Type                    | Description                                                                                              |
+| -------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `type`   | `string`                | The Pulsar JSAPI response type, such as `"updateQueryResponse"`.                                         |
+| `data`   | `any`                   | The primary result of the operation. For a successful `updateQuery()` operation this may be `"success"`. |
+| `args`   | `object`                | Optional additional response metadata provided by Pulsar.                                                |
+| `errors` | `PulsarResponseError[]` | Optional errors reported while processing the request.                                                   |
+
+The `errors` property is supplemental response information. Its presence does not necessarily mean that the entire JSAPI request failed.
+
+A bridge response whose `type` is `"error"` causes the returned promise to reject instead.
 
 ### Example
-``` js
+
+```js
 await pulsar.init();
 
 const result = await pulsar.updateQuery(
@@ -2062,14 +2081,103 @@ const result = await pulsar.updateQuery(
   "UPDATE Account SET Status__c = 'Active' WHERE Industry = 'Technology'"
 );
 
-console.log(result); // { data: 'success' }
+console.log(result.data);
+
+if (result.errors?.length) {
+  console.warn('Update completed with errors:', result.errors);
+}
+```
+
+### Example successful response
+
+```json
+{
+  "type": "updateQueryResponse",
+  "data": "success"
+}
+```
+
+### Example response containing supplemental errors
+
+```json
+{
+  "type": "updateQueryResponse",
+  "data": "success",
+  "errors": [
+    {
+      "errorCode": "ENTITY_IS_LOCKED",
+      "message": "The record could not be processed because it is locked."
+    }
+  ]
+}
+```
+
+Applications using `updateQuery()` should inspect `errors` when the individual processing results are important:
+
+```js
+const result = await pulsar.updateQuery(
+  'Account',
+  "UPDATE Account SET Status__c = 'Active' WHERE Industry = 'Technology'"
+);
+
+if (result.errors?.length) {
+  for (const error of result.errors) {
+    console.error(
+      error.errorCode,
+      error.message
+    );
+  }
+}
+```
+
+### Error handling
+
+There are two distinct kinds of errors to consider.
+
+#### Request failure
+
+If Pulsar returns a JSAPI response whose `type` is `"error"`, the SDK rejects the promise:
+
+```js
+try {
+  await pulsar.updateQuery(
+    'Account',
+    "UPDATE Account SET Status__c = 'Active'"
+  );
+} catch (error) {
+  console.error('updateQuery request failed:', error);
+}
+```
+
+#### Supplemental response errors
+
+A non-error response may also include an `errors` array.
+
+These errors do not cause `updateQuery()` to reject automatically:
+
+```js
+const result = await pulsar.updateQuery(
+  'Account',
+  "UPDATE Account SET Status__c = 'Active'"
+);
+
+if (result.errors?.length) {
+  console.warn(
+    'The request completed with reported errors:',
+    result.errors
+  );
+}
 ```
 
 ### Notes
-- This method only modifies the local Pulsar database.
-- It does not sync changes back to Salesforce automatically — you must call `syncData()` if needed.
-- **No validation, triggers, or roll-ups are processed**.
-- Use when `update()` or `create()` are too restrictive for batch edits or prototyping.
+
+* `updateQuery()` operates against Pulsar's local SQLite database.
+* The query must use SQLite syntax, not SOQL.
+* The method returns the complete Pulsar response so that fields such as `errors` remain available.
+* The `errors` array may be present even when the response itself is not a `type: "error"` response.
+* A `type: "error"` response still causes the SDK promise to reject.
+* Use `update()` when you want the normal Pulsar record-update behavior instead of issuing a raw SQLite statement.
+* Use `select()` for read-only SQLite queries.
 
 ---
 
@@ -3179,24 +3287,229 @@ await pulsar.displayUrl({ url: 'https://google.com' });
 ## Method: `getOnlineStatus()`
 
 ### `async getOnlineStatus(): Promise<boolean>`
-Retrieves the current online/offline status of the Pulsar client. This is useful for diagnostics, UI indicators, or conditional logic that depends on network connectivity or offline simulation.
+
+Returns whether Pulsar is currently operating in **online mode**.
+
+Pulsar's online status is not simply a measure of whether the device has a network connection. Pulsar applies its own rules when determining whether it can operate online.
+
+For example, Pulsar may report itself as offline when:
+
+* The user has enabled **Work Offline**
+* Online mode has otherwise been disabled by configuration
+* Local changes are waiting to be pushed to Salesforce
+* Other Pulsar state prevents the application from currently operating online
+
+Use `getOnlineStatusInfo()` when you need to determine **why** Pulsar is online or offline.
+
+### Parameters
+
+None.
 
 ### Returns
-A `Promise<boolean>` — resolves to:
-- `true`: if Pulsar is currently online.
-- `false`: if Pulsar is currently offline.
+
+A `Promise<boolean>` resolving to:
+
+| Value   | Description                                    |
+| ------- | ---------------------------------------------- |
+| `true`  | Pulsar is currently operating in online mode.  |
+| `false` | Pulsar is currently operating in offline mode. |
 
 ### Example
-``` js
+
+```js
 await pulsar.init();
 
 const isOnline = await pulsar.getOnlineStatus();
-console.log('Pulsar is currently:', isOnline ? 'Online' : 'Offline');
+
+if (isOnline) {
+  console.log('Pulsar is operating online.');
+} else {
+  console.log('Pulsar is operating offline.');
+}
 ```
 
 ### Notes
-- This reflects the current simulated online status and not the actual device connectivity.
-- Can be used in tandem with `setOnlineStatus()` for testing or UX scenarios.
+
+* This reports **Pulsar's online mode**, not simply whether the device has a network connection.
+* A device may have connectivity while Pulsar is operating offline.
+* Pending local changes may cause Pulsar to report itself as offline.
+* Use `getOnlineStatusInfo()` when you need detailed information about connectivity, pending changes, sync availability, or online-mode configuration.
+* Use `getNetworkStatus()` when you specifically need information about the device's network connection.
+
+---
+
+## Method: `getOnlineStatusInfo()`
+
+### `async getOnlineStatusInfo(): Promise<OnlineStatusResult>`
+
+Returns detailed information about Pulsar's current online state.
+
+This method exposes the additional status information provided by the Pulsar `getOnlineStatus` JSAPI response. It can be used to distinguish between network connectivity, Pulsar's configured online/offline state, pending changes, sync availability, and conditions requiring user interaction.
+
+Unlike `getOnlineStatus()`, which returns only a boolean, `getOnlineStatusInfo()` returns a normalized JavaScript object.
+
+### Parameters
+
+None.
+
+### Returns
+
+A `Promise<OnlineStatusResult>` resolving to an object with the following fields:
+
+| Field                       | Type      | Description                                                                                                                        |
+| --------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `isOnline`                  | `boolean` | Whether Pulsar is currently operating in online mode.                                                                              |
+| `canSync`                   | `boolean` | Whether Pulsar is currently able to perform a sync.                                                                                |
+| `hasConnectivity`           | `boolean` | Whether the device currently has network connectivity, such as Wi-Fi or cellular service.                                          |
+| `numUnpushedChanges`        | `number`  | Number of local changes that have not yet been pushed to Salesforce.                                                               |
+| `onlineEnabled`             | `boolean` | Whether Pulsar's online mode is enabled by the user or administrator.                                                              |
+| `offlineWithSync`           | `boolean` | Whether the administrator-configured forced-offline-with-sync mode is active.                                                      |
+| `autosyncEnabled`           | `boolean` | Whether automatic synchronization is enabled.                                                                                      |
+| `syncUserInteractionNeeded` | `boolean` | Whether user interaction is currently required to resolve a conflict, validation error, or other issue before syncing can proceed. |
+
+### Example
+
+```js
+await pulsar.init();
+
+const status = await pulsar.getOnlineStatusInfo();
+
+console.log('Pulsar online:', status.isOnline);
+console.log('Can sync:', status.canSync);
+console.log('Network available:', status.hasConnectivity);
+console.log('Pending changes:', status.numUnpushedChanges);
+```
+
+### Example: Determine why Pulsar is offline
+
+```js
+const status = await pulsar.getOnlineStatusInfo();
+
+if (!status.isOnline) {
+  if (!status.hasConnectivity) {
+    console.log('The device currently has no network connection.');
+  } else if (status.numUnpushedChanges > 0) {
+    console.log(
+      `${status.numUnpushedChanges} local changes are waiting to be pushed.`
+    );
+  } else if (!status.onlineEnabled) {
+    console.log('Pulsar online mode has been disabled.');
+  }
+}
+```
+
+### Example: Determine whether synchronization can proceed
+
+```js
+const status = await pulsar.getOnlineStatusInfo();
+
+if (status.syncUserInteractionNeeded) {
+  console.warn(
+    'User interaction is required before synchronization can continue.'
+  );
+} else if (status.canSync) {
+  await pulsar.syncData();
+} else {
+  console.log('Pulsar cannot sync at this time.');
+}
+```
+
+### Example response
+
+```js
+{
+  isOnline: false,
+  canSync: true,
+  hasConnectivity: true,
+  numUnpushedChanges: 3,
+  onlineEnabled: true,
+  offlineWithSync: false,
+  autosyncEnabled: true,
+  syncUserInteractionNeeded: false
+}
+```
+
+### Understanding the status fields
+
+#### `isOnline`
+
+Indicates whether Pulsar is currently operating in online mode.
+
+This value is equivalent to the status returned by `getOnlineStatus()`.
+
+Pulsar may report `isOnline` as `false` even when `hasConnectivity` is `true`.
+
+#### `canSync`
+
+Indicates whether Pulsar is currently capable of performing a synchronization operation.
+
+This is distinct from `isOnline`: Pulsar's current operating mode and its ability to perform a sync are separate conditions.
+
+#### `hasConnectivity`
+
+Indicates whether the device has access to a network such as Wi-Fi or cellular service.
+
+Network connectivity alone does not mean Pulsar is operating online.
+
+#### `numUnpushedChanges`
+
+The number of local changes that have not yet been pushed to Salesforce.
+
+When this value is greater than zero, Pulsar may operate offline until those changes can be synchronized.
+
+#### `onlineEnabled`
+
+Indicates whether online operation has been enabled by the user or administrator.
+
+`setOnlineStatus()` modifies this configured online state.
+
+#### `offlineWithSync`
+
+Indicates whether Pulsar's administrator-configured **forced offline permanently with sync enabled** mode is active.
+
+In this mode, Pulsar can remain in offline operation while synchronization is still permitted.
+
+#### `autosyncEnabled`
+
+Indicates whether automatic synchronization is enabled.
+
+This corresponds to the setting controlled by `getAutosyncStatus()` and `setAutosyncStatus()`.
+
+#### `syncUserInteractionNeeded`
+
+Indicates that synchronization cannot proceed without user interaction, such as resolving a record conflict or validation error.
+
+This can be useful for applications that need to distinguish between a sync that is merely unavailable and one that specifically requires user action.
+
+### Pulsar online status vs. network connectivity
+
+Pulsar's online state should not be treated as equivalent to the device's network state.
+
+For example:
+
+```js
+const status = await pulsar.getOnlineStatusInfo();
+
+if (status.hasConnectivity && !status.isOnline) {
+  console.log(
+    'The device has network connectivity, but Pulsar is operating offline.'
+  );
+}
+```
+
+For simple browser-level connectivity checks, `window.navigator.onLine` may also be appropriate.
+
+For Pulsar-specific network information, use `getNetworkStatus()`.
+
+### Notes
+
+* `getOnlineStatusInfo()` uses the same underlying Pulsar `getOnlineStatus` operation as `getOnlineStatus()`.
+* The underlying JSAPI returns boolean-like values as `"TRUE"` and `"FALSE"` strings; this SDK converts them to JavaScript booleans.
+* `numUnpushedChanges` is returned by the underlying API as a numeric string; this SDK converts it to a JavaScript number.
+* `getOnlineStatus()` remains available as the simpler and backward-compatible way to retrieve only `isOnline`.
+* `hasConnectivity` reports connectivity and should not be confused with `isOnline`.
+* `canSync` does not necessarily imply that Pulsar is operating in online mode.
+* Use `syncUserInteractionNeeded` to detect cases where the user must resolve a synchronization issue before syncing can continue.
 
 ---
 
@@ -3204,29 +3517,41 @@ console.log('Pulsar is currently:', isOnline ? 'Online' : 'Offline');
 ## Method: `setOnlineStatus()`
 
 ### `async setOnlineStatus(online: boolean): Promise<boolean>`
-Manually sets the online/offline simulation state for the Pulsar client. This allows developers to mimic offline mode behavior in their applications for testing or training purposes.
+
+Requests that Pulsar operate in online or offline mode.
+
+This modifies Pulsar's configured online state. It does **not** enable or disable the device's physical network connection.
 
 ### Parameters
-| Parameter | Type    | Required | Description                                         |
-| --------- | ------- | -------- | --------------------------------------------------- |
-| `online`  | boolean | ✅        | `true` to simulate online mode, `false` for offline |
+
+| Parameter | Type      | Required | Description                                                                |
+| --------- | --------- | -------- | ------------------------------------- |
+| `online`  | `boolean` | ✅       | `true` to enable online operation or `false` to request offline operation. |
 
 ### Returns
-A Promise<boolean> — resolves to:
-- `true`: if the status change succeeded.
-- `false`: if Pulsar returned a non-success result.
+
+A `Promise<boolean>` resolving to:
+
+* `true` if Pulsar reports the requested status as enabled.
+* `false` otherwise.
 
 ### Example
-``` js
-await pulsar.init();
 
-await pulsar.setOnlineStatus(false);  // Simulate offline
-const status = await pulsar.getOnlineStatus(); // Should return false
-console.log('Current status:', status ? 'Online' : 'Offline');
+```js
+await pulsar.setOnlineStatus(false);
+
+const status = await pulsar.getOnlineStatusInfo();
+
+console.log('Online enabled:', status.onlineEnabled);
+console.log('Currently online:', status.isOnline);
 ```
 
 ### Notes
-- This does not affect actual device networking — only the Pulsar runtime status.
+
+* This controls Pulsar's online/offline mode; it does not change Wi-Fi, cellular service, or other device networking.
+* The requested configuration is exposed by `getOnlineStatusInfo()` as `onlineEnabled`.
+* Pulsar's final `isOnline` state may also depend on other conditions, including connectivity and pending local changes.
+* Use `getOnlineStatusInfo()` to inspect the complete online-state information after changing this setting.
 
 ---
 

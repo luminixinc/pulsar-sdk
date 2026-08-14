@@ -1502,30 +1502,34 @@ async syncData(options = {}) {
   /**
    * Executes a raw SQLite update query on Pulsar's local database.
    *
-   * This method allows direct manipulation of cached Salesforce data in Pulsar using SQLite syntax.
-   * It bypasses standard validation and should be used with caution.
-   *
-   * @param {string} objectName - The name of the Salesforce SObject to update (e.g., 'Account').
-   * @param {string} query - A raw SQLite UPDATE query string (e.g., "UPDATE Account SET Status__c = 'Active' WHERE Type = 'Customer'").
-   * @returns {Promise<object>} - The response from the local database update, typically `{ data: 'success' }` or includes error info.
-   * @throws {Error} If the bridge is uninitialized or inputs are invalid.
-  */
+   * @param {string} objectName - Salesforce SObject API name.
+   * @param {string} query - SQLite UPDATE query.
+   * @returns {Promise<PulsarResponse>} Full update response, including any
+   *   errors reported while processing or synchronizing the update.
+   */
   async updateQuery(objectName, query) {
-
     if (!objectName || typeof objectName !== 'string') {
-      throw new Error('updateQuery requires a valid objectName string.');
-    }
-    if (!query || typeof query !== 'string') {
-      throw new Error('updateQuery requires a valid SQLite query string.');
+      throw new Error(
+        'updateQuery requires a valid objectName string.'
+      );
     }
 
-    return this._send({
-      type: 'updateQuery',
-      object: objectName,
-      data: {
-        query
-      }
-    });
+    if (!query || typeof query !== 'string') {
+      throw new Error(
+        'updateQuery requires a valid SQLite query string.'
+      );
+    }
+
+    return this._send(
+      {
+        type: 'updateQuery',
+        object: objectName,
+        data: {
+          query
+        }
+      },
+      true
+    );
   }
 
   /**
@@ -2563,16 +2567,61 @@ async syncData(options = {}) {
     });
   }
 
-
   /**
    * Retrieves the current online/offline status of the Pulsar client.
    *
-   * @returns {Promise<object>} - A promise that resolves to an object with `online` set to `true` or `false`.
+   * @returns {Promise<boolean>} - A promise that resolves to true if we are operating online and false otherwise.
   */
   async getOnlineStatus() {
-    return this._send({
-      type: 'getOnlineStatus'
-    }).then( result => { return result === 'TRUE'; });
+    const status = await this.getOnlineStatusInfo();
+    return status.isOnline;
+  }
+
+  /**
+   * Detailed information about Pulsar's current online state.
+   *
+   * @typedef {Object} OnlineStatusResult
+   * @property {boolean} isOnline - Whether Pulsar is currently operating online.
+   * @property {boolean} canSync - Whether Pulsar can currently perform a sync.
+   * @property {boolean} hasConnectivity - Whether the device currently has network connectivity.
+   * @property {number} numUnpushedChanges - Number of local changes waiting to be pushed.
+   * @property {boolean} onlineEnabled - Pulsar's configured online-mode state.
+   * @property {boolean} offlineWithSync - Whether forced-offline-with-sync mode is enabled.
+   * @property {boolean} autosyncEnabled - Whether automatic syncing is enabled.
+   * @property {boolean} syncUserInteractionNeeded - Whether user action is required to continue syncing.
+   */
+
+  /**
+   * Retrieves detailed information about Pulsar's current online state.
+   *
+   * Pulsar's online state is not the same as physical network connectivity.
+   * Pulsar may report itself offline even when network connectivity exists,
+   * such as when the user has enabled Work Offline or local changes are pending.
+   *
+   * @returns {Promise<OnlineStatusResult>} Detailed Pulsar online-status information.
+   */
+  async getOnlineStatusInfo() {
+    const response = await this._send(
+      {
+        type: 'getOnlineStatus'
+      },
+      true
+    );
+
+    const args = response.args ?? {};
+
+    return {
+      isOnline: this._isTrue(args.isOnline ?? response.data),
+      canSync: this._isTrue(args.canSync),
+      hasConnectivity: this._isTrue(args.hasConnectivity),
+      numUnpushedChanges: Number(args.numUnpushedChanges ?? 0),
+      onlineEnabled: this._isTrue(args.onlineEnabled),
+      offlineWithSync: this._isTrue(args.offlineWithSync),
+      autosyncEnabled: this._isTrue(args.autosyncEnabled),
+      syncUserInteractionNeeded: this._isTrue(
+        args.syncUserInteractionNeeded
+      )
+    };
   }
 
   /**
@@ -2594,7 +2643,6 @@ async syncData(options = {}) {
       data: online ? 'TRUE' : 'FALSE'
     }).then( result => { return result === 'TRUE'; });
   }
-
 
   /**
    * Retrieves the current network connectivity status from the Pulsar runtime.
@@ -2710,19 +2758,69 @@ async syncData(options = {}) {
    ****************************** */
 
   /**
-   * Internal method to send a Pulsar JSAPI request via the bridge
-   * @param {object} request - Pulsar JSAPI request payload
-   * @returns {Promise<object>} - Response data or error
+   * An error reported as part of a Pulsar JSAPI response.
+   *
+   * A response may contain errors even when the request itself returns a
+   * successful response type.
+   *
+   * @typedef {Object} PulsarResponseError
+   * @property {string} [errorCode] - Pulsar or Salesforce error code.
+   * @property {string} message - Human-readable description of the error.
    */
-  _send(request) {
-    return new Promise((resolve, reject) => {
-      if (!this.bridge) return reject(new Error('Pulsar bridge not initialized. Call init() first.'));
 
-      this.bridge.send(request, (response) => {
+  /**
+   * Full response returned by the Pulsar JSAPI bridge.
+   *
+   * Most SDK methods return only `data`. Methods requiring response metadata
+   * may request the complete response from `_send()`.
+   *
+   * @typedef {Object} PulsarResponse
+   * @property {string} type - Pulsar response type.
+   * @property {string} [object] - SObject associated with the response.
+   * @property {*} data - Primary response data.
+   * @property {Object} [args] - Additional response metadata.
+   * @property {PulsarResponseError[]} [errors] - Errors reported while
+   *   processing the request.
+   */
+
+  /**
+   * Internal method that Sends a Pulsar JSAPI request through the bridge.
+   *
+   * Responses whose `type` is `"error"` reject the returned Promise.
+   *
+   * Successful responses may also contain an `errors` array. These errors are
+   * not treated as transport/request failures because Pulsar may return useful
+   * response data alongside them. Callers requiring this metadata should set
+   * `sendFullResponse` to `true`.
+   *
+   * @param {object} request - Pulsar JSAPI request.
+   * @param {boolean} [sendFullResponse=false] - When true, resolve with the
+   *   complete Pulsar response rather than only `response.data`.
+   * @returns {Promise<*>|Promise<PulsarResponse>}
+   */
+  _send(request, sendFullResponse = false) {
+    return new Promise((resolve, reject) => {
+      if (!this.bridge) {
+        return reject(
+          new Error(
+            'Pulsar bridge not initialized. Call init() first.'
+          )
+        );
+      }
+
+      this.bridge.send(request, response => {
         if (response.type === 'error') {
-          reject(new Error(response.data || 'Unknown Pulsar JSAPI error'));
+          reject(
+            new Error(
+              response.data || 'Unknown Pulsar JSAPI error'
+            )
+          );
         } else {
-          resolve(response.data);
+          resolve(
+            sendFullResponse
+              ? response
+              : response.data
+          );
         }
       });
     });

@@ -818,34 +818,119 @@ describe('updateQuery', () => {
   });
 
   it('should throw if objectName is not a string', async () => {
-    await expect(pulsar.updateQuery(null, 'UPDATE Account SET Name = "Test"')).rejects.toThrow(
+    await expect(
+      pulsar.updateQuery(
+        null,
+        'UPDATE Account SET Name = "Test"'
+      )
+    ).rejects.toThrow(
       'updateQuery requires a valid objectName string.'
     );
+
+    expect(pulsar._send).not.toHaveBeenCalled();
   });
 
   it('should throw if query is not a string', async () => {
-    await expect(pulsar.updateQuery('Account', null)).rejects.toThrow(
+    await expect(
+      pulsar.updateQuery('Account', null)
+    ).rejects.toThrow(
       'updateQuery requires a valid SQLite query string.'
     );
+
+    expect(pulsar._send).not.toHaveBeenCalled();
   });
 
-  it('should call _send with correct parameters', async () => {
+  it('should request the full Pulsar response', async () => {
     const objectName = 'Account';
-    const query = "UPDATE Account SET Status__c = 'Active' WHERE Type = 'Customer'";
-    const mockResponse = { data: 'success' };
+    const query =
+      "UPDATE Account SET Status__c = 'Active' WHERE Type = 'Customer'";
+
+    const mockResponse = {
+      type: 'updateQueryResponse',
+      data: 'success'
+    };
 
     pulsar._send.mockResolvedValue(mockResponse);
 
-    const result = await pulsar.updateQuery(objectName, query);
+    const result = await pulsar.updateQuery(
+      objectName,
+      query
+    );
 
-    expect(pulsar._send).toHaveBeenCalledWith({
-      type: 'updateQuery',
-      object: objectName,
-      data: {
-        query
+    expect(pulsar._send).toHaveBeenCalledTimes(1);
+
+    expect(pulsar._send).toHaveBeenCalledWith(
+      {
+        type: 'updateQuery',
+        object: objectName,
+        data: {
+          query
+        }
+      },
+      true
+    );
+
+    expect(result).toBe(mockResponse);
+  });
+
+  it('returns supplemental errors in the full Pulsar response', async () => {
+    const mockResponse = {
+      type: 'updateQueryResponse',
+      data: 'success',
+      errors: [
+        {
+          errorCode: 'ENTITY_IS_LOCKED',
+          message: 'The record is locked.'
+        }
+      ]
+    };
+
+    pulsar._send.mockResolvedValue(mockResponse);
+
+    const result = await pulsar.updateQuery(
+      'Account',
+      "UPDATE Account SET Status__c = 'Active'"
+    );
+
+    expect(result).toBe(mockResponse);
+
+    expect(result.data).toBe('success');
+
+    expect(result.errors).toEqual([
+      {
+        errorCode: 'ENTITY_IS_LOCKED',
+        message: 'The record is locked.'
       }
-    });
+    ]);
+  });
 
-    expect(result).toEqual(mockResponse);
+  it('returns a successful response when no supplemental errors are present', async () => {
+    const mockResponse = {
+      type: 'updateQueryResponse',
+      data: 'success'
+    };
+
+    pulsar._send.mockResolvedValue(mockResponse);
+
+    const result = await pulsar.updateQuery(
+      'Account',
+      "UPDATE Account SET Status__c = 'Active'"
+    );
+
+    expect(result.data).toBe('success');
+    expect(result.errors).toBeUndefined();
+  });
+
+  it('propagates errors from _send', async () => {
+    const error = new Error('Update query failed');
+
+    pulsar._send.mockRejectedValue(error);
+
+    await expect(
+      pulsar.updateQuery(
+        'Account',
+        "UPDATE Account SET Status__c = 'Active'"
+      )
+    ).rejects.toBe(error);
   });
 });
