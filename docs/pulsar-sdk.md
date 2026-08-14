@@ -72,6 +72,7 @@ Use these methods to obtain information about displaying an individual SObject.
 - `createSFFileBatch(...)` – Upload multiple files.
 - `readSFFile(fileId)` – Download a file’s content.
 - `deleteSFFile(fileId)` – Delete a file by Id.
+- `readDocument(documentId, returnBase64Data?)` – Read a Salesforce Document record and optionally retrieve its base64-encoded Body.
 - `queryContent(objectName, parentId)` – Query associated files.
 
 ### Chatter
@@ -2309,6 +2310,72 @@ console.log(files[0].FileURL);  // outputs local file URL
 - This method works only on the **local cached ContentVersion table**.
 - It will not return `VersionData` file contents. Use `readSFFile()` if you need the base64 file contents.
 - Use `pulsar.attachment.thumbnailMaxSidePixels` to control max image thumbnail size (same as `readSFFile()`).
+
+---
+
+
+# Method: `readDocument()`
+
+### `async readDocument(documentId: string, returnBase64Data?: boolean): Promise<object>`
+
+Retrieves a single Salesforce `Document` record using the Pulsar Document API.
+
+This method is intended for applications using Salesforce's `Document` object rather than Salesforce Files (`ContentDocument` / `ContentVersion`).
+
+By default, Pulsar returns the Document's fields and data **without the `Body` field**, because the document body may contain up to 5 MB of base64-encoded file data.
+
+Set `returnBase64Data` to `true` when the base64 representation of the document is required.
+
+### Parameters
+
+| Parameter          | Type      | Required | Description                                                                                    |
+| ------------------ | --------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `documentId`       | `string`  | ✅        | Salesforce Id of the `Document` record, such as `"015Do000000rUdgIAE"`.                        |
+| `returnBase64Data` | `boolean` | ❌        | If `true`, includes the base64-encoded document data in the `Body` field. Defaults to `false`. |
+
+### Returns
+
+A `Promise<object>` resolving to the Document information returned by Pulsar.
+
+By default, the response contains the Document's fields except for `Body`.
+
+When `returnBase64Data` is `true`, the response also includes the base64-encoded file contents in the `Body` field.
+
+Pulsar also provides links to the document file and, when applicable, its thumbnail.
+
+### Example: Read document metadata
+
+```js
+await pulsar.init();
+
+const document = await pulsar.readDocument(
+  '015Do000000rUdgIAE'
+);
+
+console.log(document);
+```
+
+Because `returnBase64Data` defaults to `false`, the document's potentially large `Body` field is not requested.
+
+### Example: Read document contents
+
+```js
+const document = await pulsar.readDocument(
+  '015Do000000rUdgIAE',
+  true
+);
+
+console.log(document.Body);
+```
+
+### Notes
+
+* This method operates on Salesforce's `Document` object.
+* Use `readSFFile()` instead when working with Salesforce Files (`ContentDocument` or `ContentVersion`).
+* `returnBase64Data` defaults to `false`.
+* The `Body` field may contain up to 5 MB of base64-encoded data.
+* Avoid requesting base64 data unless the application actually needs the file contents.
+* Pulsar provides access to the underlying file even when `returnBase64Data` is `false`.
 
 ---
 

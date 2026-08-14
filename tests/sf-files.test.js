@@ -934,3 +934,119 @@ describe('updateQuery', () => {
     ).rejects.toBe(error);
   });
 });
+
+describe('Pulsar readDocument', () => {
+  let pulsar;
+
+  beforeEach(() => {
+    pulsar = new Pulsar();
+    pulsar.bridge = {
+      send: jest.fn()
+    };
+  });
+
+  it('should send the correct request with ReturnBase64Data true', async () => {
+    const mockResponse = {
+      Id: '015Do000000rUdgIAE',
+      Name: 'Example Document',
+      Body: 'base64data'
+    };
+
+    pulsar.bridge.send.mockImplementation((req, cb) => {
+      cb({
+        type: 'readDocumentResponse',
+        data: mockResponse
+      });
+    });
+
+    const result = await pulsar.readDocument(
+      '015Do000000rUdgIAE',
+      true
+    );
+
+    expect(pulsar.bridge.send).toHaveBeenCalledWith(
+      {
+        type: 'readDocument',
+        args: {
+          Id: '015Do000000rUdgIAE',
+          ReturnBase64Data: true
+        }
+      },
+      expect.any(Function)
+    );
+
+    expect(result).toBe(mockResponse);
+  });
+
+  it('should default ReturnBase64Data to false', async () => {
+    const mockResponse = {
+      Id: '015Do000000rUdgIAE',
+      Name: 'Example Document'
+    };
+
+    pulsar.bridge.send.mockImplementation((req, cb) => {
+      cb({
+        type: 'readDocumentResponse',
+        data: mockResponse
+      });
+    });
+
+    const result = await pulsar.readDocument(
+      '015Do000000rUdgIAE'
+    );
+
+    expect(pulsar.bridge.send).toHaveBeenCalledWith(
+      {
+        type: 'readDocument',
+        args: {
+          Id: '015Do000000rUdgIAE',
+          ReturnBase64Data: false
+        }
+      },
+      expect.any(Function)
+    );
+
+    expect(result).toBe(mockResponse);
+  });
+
+  it('should throw if documentId is missing', async () => {
+    await expect(
+      pulsar.readDocument()
+    ).rejects.toThrow(
+      'readDocument requires a valid documentId string.'
+    );
+  });
+
+  it('should throw if documentId is not a string', async () => {
+    await expect(
+      pulsar.readDocument(123)
+    ).rejects.toThrow(
+      'readDocument requires a valid documentId string.'
+    );
+  });
+
+  it('should throw if bridge is not initialized', async () => {
+    pulsar.bridge = null;
+
+    await expect(
+      pulsar.readDocument('015Do000000rUdgIAE')
+    ).rejects.toThrow(
+      'Pulsar bridge not initialized. Call init() first.'
+    );
+  });
+
+  it('should reject if bridge returns an error', async () => {
+    pulsar.bridge.send.mockImplementation((_req, cb) => {
+      cb({
+        type: 'error',
+        data: 'Unable to read Document'
+      });
+    });
+
+    await expect(
+      pulsar.readDocument('015Do000000rUdgIAE')
+    ).rejects.toThrow(
+      'Unable to read Document'
+    );
+  });
+});

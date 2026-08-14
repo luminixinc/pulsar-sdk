@@ -1500,6 +1500,39 @@ async syncData(options = {}) {
 
 
   /**
+   * Reads a single Salesforce Document record.
+   *
+   * By default, the Document's Body field is excluded because it may contain
+   * up to 5 MB of base64-encoded file data. Set `returnBase64Data` to true
+   * to include the Body field.
+   *
+   * Pulsar also provides links to the document file and, when applicable,
+   * its thumbnail.
+   *
+   * @param {string} documentId - Salesforce Id of the Document record.
+   * @param {boolean} [returnBase64Data=false] - If true, includes the
+   *   base64-encoded Body field in the response.
+   * @returns {Promise<object>} The Document record returned by Pulsar.
+   * @throws {Error} If documentId is missing or is not a string.
+   */
+  async readDocument(documentId, returnBase64Data = false) {
+    if (!documentId || typeof documentId !== 'string') {
+      throw new Error(
+        'readDocument requires a valid documentId string.'
+      );
+    }
+
+    return this._send({
+      type: 'readDocument',
+      args: {
+        Id: documentId,
+        ReturnBase64Data: returnBase64Data
+      }
+    });
+  }
+
+
+  /**
    * Executes a raw SQLite update query on Pulsar's local database.
    *
    * @param {string} objectName - Salesforce SObject API name.
