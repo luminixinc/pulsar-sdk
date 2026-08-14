@@ -1341,11 +1341,13 @@ await pulsar.deleteSFFile(['069abc123456789', '069def987654321']);
 ```
 
 ### Notes
-- The deletion request affects local cached files only; if sync is enabled the deletion will propagate to Salesforce.
-- Passing an empty array or non-string values will throw an error.
-- To avoid accidental data loss, multiple delete requests should be executed sequentially and not in parallel.
-- This method requires an active `pulsar.init()` session.
-
+- If offline, this method only modifies the local Pulsar database. The data does not sync to Salesforce automatically and you must call `syncData()`.
+- If online, the data does sync automatically and the updateQuery() response must be handled correctly.
+- The data return 'success' means the value was written to the local database.
+- An error response means the value could not be written to the local database.
+- The response may include additional error information, even if the data return 'success' is received. Typically this means the data was updated in the local database, but Salesforce rejected the updated data.
+- **No validation, triggers, or roll-ups are processed**.
+- Use when `update()` or `create()` are too restrictive for batch edits or prototyping.
 ---
 
 
