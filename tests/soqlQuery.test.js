@@ -18,12 +18,18 @@ describe('Pulsar.soqlQuery()', () => {
     const query =
       "SELECT Id, Name FROM Account WHERE Industry = 'Technology'";
 
-    const response = [
-      {
-        Id: '001000000000001AAA',
-        Name: 'Acme',
+    const response = {
+      response: {
+        totalSize: 1,
+        done: true,
+        records: [
+          {
+            Id: '001000000000001AAA',
+            Name: 'Acme',
+          },
+        ],
       },
-    ];
+    };
 
     sendMock.mockResolvedValue(response);
 
@@ -38,33 +44,75 @@ describe('Pulsar.soqlQuery()', () => {
     });
   });
 
-  it('returns the response produced by _send()', async () => {
-    const response = [
-      {
-        Id: '001000000000001AAA',
-        Name: 'Acme',
-      },
-      {
-        Id: '001000000000002AAA',
-        Name: 'Globex',
-      },
-    ];
+  it('returns the SOQLQueryResult from the response wrapper', async () => {
+    const soqlQueryResult = {
+      totalSize: 2,
+      done: true,
+      records: [
+        {
+          Id: '001000000000001AAA',
+          Name: 'Acme',
+        },
+        {
+          Id: '001000000000002AAA',
+          Name: 'Globex',
+        },
+      ],
+    };
 
-    sendMock.mockResolvedValue(response);
+    sendMock.mockResolvedValue({
+      response: soqlQueryResult,
+    });
 
     await expect(
       pulsar.soqlQuery('SELECT Id, Name FROM Account')
-    ).resolves.toBe(response);
+    ).resolves.toBe(soqlQueryResult);
   });
 
-  it('returns an empty array when _send() returns no records', async () => {
-    sendMock.mockResolvedValue([]);
+  it('returns an empty SOQLQueryResult when the query has no records', async () => {
+    const soqlQueryResult = {
+      totalSize: 0,
+      done: true,
+      records: [],
+    };
+
+    sendMock.mockResolvedValue({
+      response: soqlQueryResult,
+    });
 
     await expect(
       pulsar.soqlQuery(
         "SELECT Id FROM Account WHERE Name = 'Does Not Exist'"
       )
-    ).resolves.toEqual([]);
+    ).resolves.toBe(soqlQueryResult);
+  });
+
+  it('returns totalSize, done, and records from the SOQL result', async () => {
+    sendMock.mockResolvedValue({
+      response: {
+        totalSize: 1,
+        done: true,
+        records: [
+          {
+            Id: '001000000000001AAA',
+            Name: 'Acme',
+          },
+        ],
+      },
+    });
+
+    const result = await pulsar.soqlQuery(
+      'SELECT Id, Name FROM Account'
+    );
+
+    expect(result.totalSize).toBe(1);
+    expect(result.done).toBe(true);
+    expect(result.records).toEqual([
+      {
+        Id: '001000000000001AAA',
+        Name: 'Acme',
+      },
+    ]);
   });
 
   it('passes multiline and relationship queries through unchanged', async () => {
@@ -79,7 +127,13 @@ describe('Pulsar.soqlQuery()', () => {
       LIMIT 100
     `;
 
-    sendMock.mockResolvedValue([]);
+    sendMock.mockResolvedValue({
+      response: {
+        totalSize: 0,
+        done: true,
+        records: [],
+      },
+    });
 
     await pulsar.soqlQuery(query);
 
@@ -95,16 +149,24 @@ describe('Pulsar.soqlQuery()', () => {
     const query =
       'SELECT Industry, COUNT(Id) total FROM Account GROUP BY Industry';
 
-    const response = [
-      {
-        Industry: 'Technology',
-        total: 12,
-      },
-    ];
+    const soqlQueryResult = {
+      totalSize: 1,
+      done: true,
+      records: [
+        {
+          Industry: 'Technology',
+          total: 12,
+        },
+      ],
+    };
 
-    sendMock.mockResolvedValue(response);
+    sendMock.mockResolvedValue({
+      response: soqlQueryResult,
+    });
 
-    await expect(pulsar.soqlQuery(query)).resolves.toBe(response);
+    await expect(
+      pulsar.soqlQuery(query)
+    ).resolves.toBe(soqlQueryResult);
 
     expect(sendMock).toHaveBeenCalledWith({
       type: 'soqlquery',
@@ -126,7 +188,9 @@ describe('Pulsar.soqlQuery()', () => {
     ['a whitespace-only string', '   '],
     ['a string containing only newlines', '\n\t'],
   ])('rejects when query is %s', async (_description, query) => {
-    await expect(pulsar.soqlQuery(query)).rejects.toThrow(
+    await expect(
+      pulsar.soqlQuery(query)
+    ).rejects.toThrow(
       'SOQL query must be a valid string.'
     );
 
@@ -134,7 +198,9 @@ describe('Pulsar.soqlQuery()', () => {
   });
 
   it('propagates errors rejected by _send()', async () => {
-    const error = new Error('Invalid field Name__c for Account');
+    const error = new Error(
+      'Invalid field Name__c for Account'
+    );
 
     sendMock.mockRejectedValue(error);
 
