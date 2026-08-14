@@ -839,46 +839,84 @@ export class Pulsar {
 
 
   /**
-   * Initiates a Pulsar sync operation.
-   * This triggers the sync process, which will run in the background.
-   * You must register `syncDataFinished` and optionally `syncDataUpdate` handlers
-   * beforehand using `registerHandler()` to receive progress and completion updates.
-   *
-   * @param {object} [options={}] - Optional sync configuration:
-   *   @param {boolean} [options.singleObjectSyncEnabled] - Enable single-object sync mode.
-   *   @param {string} [options.rootObjectId] - Record ID to sync when singleObjectSync is enabled.
-   *   @param {string[]} [options.parentIdFieldList] - Parent reference fields to sync (or ['NONE']).
-   *   @param {string[]} [options.childRelationshipList] - Child relationships to sync (or ['NONE']).
-   *   @param {boolean} [options.pushChangesSyncEnabled] - If true, pushes only local changes.
-   *   @param {boolean} [options.useComposite] - Use Salesforce Composite API.
-   *   @param {boolean} [options.useCompositeGraph] - Use Salesforce Composite Graph API.
-   *
-   * @returns {Promise<void>} - Resolves when the sync request has been successfully sent.
-   *   Does NOT wait for sync completion.
-   */
-  async syncData(options = {}) {
-    const validKeys = [
-      'singleObjectSyncEnabled',
-      'rootObjectId',
-      'parentIdFieldList',
-      'childRelationshipList',
-      'pushChangesSyncEnabled',
-      'useComposite',
-      'useCompositeGraph'
-    ];
+ * Initiates a Pulsar sync operation.
+ *
+ * This triggers the sync process in the background and returns once the sync
+ * request has been accepted. It does not wait for the sync to complete.
+ *
+ * Register `syncDataFinished` and, optionally, `syncDataUpdate` handlers before
+ * calling this method if the application needs to monitor the sync lifecycle.
+ *
+ * With no options, Pulsar performs a standard sync.
+ *
+ * @param {object} [options={}] - Optional sync configuration.
+ *
+ * @param {boolean} [options.miniSyncEnabled] -
+ *   Set to true to perform a mini sync.
+ *
+ * @param {string[]} [options.miniSyncObjectList] -
+ *   SObject API names to include in a mini sync. Required when
+ *   `miniSyncEnabled` is true.
+ *
+ * @param {boolean} [options.singleObjectSyncEnabled] -
+ *   Set to true to perform a single-object sync.
+ *
+ * @param {string} [options.rootObjectId] -
+ *   Salesforce Id of the root record for a single-object sync.
+ *   Required when `singleObjectSyncEnabled` is true.
+ *
+ * @param {string[]} [options.parentIdFieldList] -
+ *   Reference fields on the root object whose parent records should be synced.
+ *   If omitted, all applicable parent references are included. Pass ['NONE']
+ *   to suppress parent syncing.
+ *
+ * @param {string[]} [options.childRelationshipList] -
+ *   Child relationships of the root object to sync. If omitted, all applicable
+ *   child relationships are included. Pass ['NONE'] to suppress child syncing.
+ *
+ * @param {string} [options.childStartDatetime] -
+ *   ISO 8601 datetime limiting child relationship records to records modified
+ *   since that time.
+ *
+ * @param {boolean} [options.pushChangesSyncEnabled] -
+ *   Set to true to perform a push-changes-only sync.
+ *
+ * @param {boolean} [options.useComposite] -
+ *   Explicitly use the Salesforce Composite API.
+ *
+ * @param {boolean} [options.useCompositeGraph] -
+ *   Explicitly use the Salesforce Composite Graph API.
+ *
+ * @returns {Promise<void>} Resolves when the sync request has been initiated.
+ *   Does not wait for sync completion.
+ */
+async syncData(options = {}) {
+  const validKeys = [
+    'miniSyncEnabled',
+    'miniSyncObjectList',
+    'singleObjectSyncEnabled',
+    'rootObjectId',
+    'parentIdFieldList',
+    'childRelationshipList',
+    'childStartDatetime',
+    'pushChangesSyncEnabled',
+    'useComposite',
+    'useCompositeGraph'
+  ];
 
-    const data = {};
-    for (const key of validKeys) {
-      if (key in options) {
-        data[key] = options[key];
-      }
+  const data = {};
+
+  for (const key of validKeys) {
+    if (key in options) {
+      data[key] = options[key];
     }
-
-    return this._send({
-      type: 'syncdata',
-      data
-    });
   }
+
+  return this._send({
+    type: 'syncdata',
+    data
+  });
+}
 
   /**
    * Information about the current Pulsar sync operation.

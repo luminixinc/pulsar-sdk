@@ -12,8 +12,13 @@ describe('Pulsar.syncData', () => {
     };
     pulsar.isInitialized = true;
 
-    // Simplify mocking _send
-    mockSend = jest.fn((request, cb) => cb({ type: 'syncDataResponse', data: 'ok' }));
+    mockSend = jest.fn((request, cb) =>
+      cb({
+        type: 'syncDataResponse',
+        data: 'ok'
+      })
+    );
+
     pulsar.bridge.send = mockSend;
   });
 
@@ -21,75 +26,285 @@ describe('Pulsar.syncData', () => {
     await expect(pulsar.syncData()).resolves.toBe('ok');
 
     expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
         type: 'syncdata',
         data: {}
-      }),
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('initiates a mini sync', async () => {
+    await expect(
+      pulsar.syncData({
+        miniSyncEnabled: true,
+        miniSyncObjectList: ['Account', 'Contact']
+      })
+    ).resolves.toBe('ok');
+
+    expect(mockSend).toHaveBeenCalledWith(
+      {
+        type: 'syncdata',
+        data: {
+          miniSyncEnabled: true,
+          miniSyncObjectList: ['Account', 'Contact']
+        }
+      },
       expect.any(Function)
     );
   });
 
   test('initiates a push changes sync', async () => {
-    await expect(pulsar.syncData({
-      pushChangesSyncEnabled: true,
-      useCompositeGraph: true
-    })).resolves.toBe('ok');
+    await expect(
+      pulsar.syncData({
+        pushChangesSyncEnabled: true
+      })
+    ).resolves.toBe('ok');
 
     expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
+        type: 'syncdata',
+        data: {
+          pushChangesSyncEnabled: true
+        }
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('initiates a push changes sync using Composite API', async () => {
+    await expect(
+      pulsar.syncData({
+        pushChangesSyncEnabled: true,
+        useComposite: true
+      })
+    ).resolves.toBe('ok');
+
+    expect(mockSend).toHaveBeenCalledWith(
+      {
+        type: 'syncdata',
+        data: {
+          pushChangesSyncEnabled: true,
+          useComposite: true
+        }
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('initiates a push changes sync using Composite Graph API', async () => {
+    await expect(
+      pulsar.syncData({
+        pushChangesSyncEnabled: true,
+        useCompositeGraph: true
+      })
+    ).resolves.toBe('ok');
+
+    expect(mockSend).toHaveBeenCalledWith(
+      {
         type: 'syncdata',
         data: {
           pushChangesSyncEnabled: true,
           useCompositeGraph: true
         }
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('initiates a single object sync with all supported relationship options', async () => {
+    await expect(
+      pulsar.syncData({
+        singleObjectSyncEnabled: true,
+        rootObjectId: '003d0000032lc1ZAAQ',
+        parentIdFieldList: [
+          'AccountId',
+          'ReportsToId'
+        ],
+        childRelationshipList: [
+          'Cases',
+          'Tasks',
+          'Custom_Objects__r'
+        ],
+        childStartDatetime: '2026-08-01T00:00:00.000Z'
+      })
+    ).resolves.toBe('ok');
+
+    expect(mockSend).toHaveBeenCalledWith(
+      {
+        type: 'syncdata',
+        data: {
+          singleObjectSyncEnabled: true,
+          rootObjectId: '003d0000032lc1ZAAQ',
+          parentIdFieldList: [
+            'AccountId',
+            'ReportsToId'
+          ],
+          childRelationshipList: [
+            'Cases',
+            'Tasks',
+            'Custom_Objects__r'
+          ],
+          childStartDatetime: '2026-08-01T00:00:00.000Z'
+        }
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('can initiate a single object sync for the root object only', async () => {
+    await expect(
+      pulsar.syncData({
+        singleObjectSyncEnabled: true,
+        rootObjectId: '001234567890123AAA',
+        parentIdFieldList: ['NONE'],
+        childRelationshipList: ['NONE']
+      })
+    ).resolves.toBe('ok');
+
+    expect(mockSend).toHaveBeenCalledWith(
+      {
+        type: 'syncdata',
+        data: {
+          singleObjectSyncEnabled: true,
+          rootObjectId: '001234567890123AAA',
+          parentIdFieldList: ['NONE'],
+          childRelationshipList: ['NONE']
+        }
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('passes childStartDatetime through unchanged', async () => {
+    const childStartDatetime = '2020-01-01T00:00:00.000Z';
+
+    await pulsar.syncData({
+      singleObjectSyncEnabled: true,
+      rootObjectId: '001234567890123AAA',
+      childRelationshipList: ['Cases'],
+      childStartDatetime
+    });
+
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          childStartDatetime
+        })
       }),
       expect.any(Function)
     );
   });
 
-  test('initiates a single object sync with all params', async () => {
-    await expect(pulsar.syncData({
+  test('passes every supported sync option through to the request', async () => {
+    const options = {
+      miniSyncEnabled: true,
+      miniSyncObjectList: ['Account', 'Contact'],
       singleObjectSyncEnabled: true,
-      rootObjectId: '003d0000032lc1ZAAQ',
-      parentIdFieldList: ['AccountId'],
-      childRelationshipList: ['Cases'],
-    })).resolves.toBe('ok');
+      rootObjectId: '001XYZ',
+      parentIdFieldList: ['ParentId__c'],
+      childRelationshipList: ['Children__r'],
+      childStartDatetime: '2026-08-01T00:00:00.000Z',
+      pushChangesSyncEnabled: true,
+      useComposite: true,
+      useCompositeGraph: true
+    };
+
+    await pulsar.syncData(options);
 
     expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
+        type: 'syncdata',
+        data: options
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('preserves explicitly supplied false values', async () => {
+    await pulsar.syncData({
+      miniSyncEnabled: false,
+      singleObjectSyncEnabled: false,
+      pushChangesSyncEnabled: false,
+      useComposite: false,
+      useCompositeGraph: false
+    });
+
+    expect(mockSend).toHaveBeenCalledWith(
+      {
         type: 'syncdata',
         data: {
-          singleObjectSyncEnabled: true,
-          rootObjectId: '003d0000032lc1ZAAQ',
-          parentIdFieldList: ['AccountId'],
-          childRelationshipList: ['Cases'],
+          miniSyncEnabled: false,
+          singleObjectSyncEnabled: false,
+          pushChangesSyncEnabled: false,
+          useComposite: false,
+          useCompositeGraph: false
         }
-      }),
+      },
       expect.any(Function)
     );
   });
 
   test('ignores unsupported options', async () => {
-    await expect(pulsar.syncData({ unsupportedOption: 123 })).resolves.toBe('ok');
+    await expect(
+      pulsar.syncData({
+        miniSyncEnabled: true,
+        miniSyncObjectList: ['Account'],
+        unsupportedOption: 123,
+        anotherUnsupportedOption: 'blerg'
+      })
+    ).resolves.toBe('ok');
 
     expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
         type: 'syncdata',
-        data: {}
-      }),
+        data: {
+          miniSyncEnabled: true,
+          miniSyncObjectList: ['Account']
+        }
+      },
       expect.any(Function)
     );
   });
 
+  test('does not mutate the supplied options object', async () => {
+    const options = {
+      miniSyncEnabled: true,
+      miniSyncObjectList: ['Account'],
+      unsupportedOption: 123
+    };
+
+    await pulsar.syncData(options);
+
+    expect(options).toEqual({
+      miniSyncEnabled: true,
+      miniSyncObjectList: ['Account'],
+      unsupportedOption: 123
+    });
+  });
+
   test('throws if bridge is not initialized', async () => {
     const uninitialized = new Pulsar();
-    await expect(uninitialized.syncData()).rejects.toThrow("Pulsar bridge not initialized");
+
+    await expect(
+      uninitialized.syncData()
+    ).rejects.toThrow(
+      'Pulsar bridge not initialized'
+    );
   });
 
   test('throws if bridge returns an error', async () => {
-    pulsar.bridge.send = (req, cb) => cb({ type: 'error', data: 'Something went wrong' });
+    pulsar.bridge.send = (req, cb) =>
+      cb({
+        type: 'error',
+        data: 'Something went wrong'
+      });
 
-    await expect(pulsar.syncData()).rejects.toThrow('Something went wrong');
+    await expect(
+      pulsar.syncData()
+    ).rejects.toThrow(
+      'Something went wrong'
+    );
   });
 });
 
