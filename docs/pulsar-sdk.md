@@ -661,7 +661,7 @@ The SObject is specified within the query’s `FROM` clause, so this method does
 | `query` |	`string` | ✅ | A complete SOQL query, including the selected fields and the SObject in the `FROM` clause.|
 
 ### Returns
-A `Promise<object[]>` that resolves to the Salesforce records returned by the query. Each record contains the fields selected by the SOQL statement.
+A `Promise<{totalSize: number, done: boolean,nextRecordsUrl: string,records: object[]}>` that resolves to the Salesforce records returned by the query. Each record contains the fields selected by the SOQL statement.
 
 ### Example
 ``` js
@@ -671,7 +671,7 @@ const accounts = await pulsar.soqlQuery(
   "SELECT Id, Name, Industry FROM Account WHERE Industry = 'Technology' ORDER BY Name"
 );
 
-for (const account of accounts) {
+for (const account of accounts.records) {
   console.log(account.Id, account.Name, account.Industry);
 }
 ```
@@ -684,7 +684,7 @@ const contacts = await pulsar.soqlQuery(
   "SELECT Id, Name, Account.Name FROM Contact WHERE AccountId != null LIMIT 100"
 );
 
-console.log(contacts);
+console.log(contacts.records);
 ```
 
 ### Notes
