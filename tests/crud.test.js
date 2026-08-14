@@ -181,6 +181,7 @@ describe('pulsar.update', () => {
 
   beforeEach(() => {
     mockSend = jest.fn();
+
     pulsar = new Pulsar();
     pulsar.bridge = { send: mockSend };
     pulsar.isInitialized = true;
@@ -190,46 +191,248 @@ describe('pulsar.update', () => {
     jest.clearAllMocks();
   });
 
-  test('sends an update request and resolves with response data', async () => {
-    const mockResponse = {
-      type: 'updateResponse',
-      data: { Id: '001XYZ', Name: 'Updated Name' }
-    };
-
-    mockSend.mockImplementation((req, cb) => cb(mockResponse));
-
-    const result = await pulsar.update('Account', { Id: '001XYZ', Name: 'Updated Name' });
-
-    expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'update',
-      object: 'Account',
-      data: { Id: '001XYZ', Name: 'Updated Name' }
-    }), expect.any(Function));
-
-    expect(result.Id).toBe('001XYZ');
-  });
-
-  test('rejects if Id field is missing', async () => {
-    await expect(pulsar.update('Account', { Name: 'Missing ID' }))
-      .rejects
-      .toThrow("Update requires 'Id' field.");
-  });
-
-  test('rejects if Pulsar bridge returns an error', async () => {
-    mockSend.mockImplementation((req, cb) => {
-      cb({ type: 'error', data: 'Update failed' });
+  test('adds the record Id to the fields and resolves with the updated Id', async () => {
+    mockSend.mockImplementation((_request, callback) => {
+      callback({
+        type: 'updateResponse',
+        object: 'Account',
+        data: '001XYZ'
+      });
     });
 
-    await expect(pulsar.update('Account', { Id: '001XYZ', Name: 'Bad Update' }))
-      .rejects
-      .toThrow('Update failed');
+    const result = await pulsar.update(
+      'Account',
+      '001XYZ',
+      {
+        Name: 'Updated Name',
+        Industry: 'Energy'
+      }
+    );
+
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend).toHaveBeenCalledWith(
+      {
+        type: 'update',
+        object: 'Account',
+        data: {
+          Name: 'Updated Name',
+          Industry: 'Energy',
+          Id: '001XYZ'
+        },
+        args: {}
+      },
+      expect.any(Function)
+    );
+
+    expect(result).toBe('001XYZ');
   });
 
-  test('rejects if bridge is not initialized', async () => {
-    pulsar = new Pulsar(); // not initialized
-    await expect(pulsar.update('Account', { Id: '001XYZ' }))
-      .rejects
-      .toThrow('Pulsar bridge not initialized');
+  test('passes optional update arguments to Pulsar', async () => {
+    mockSend.mockImplementation((_request, callback) => {
+      callback({
+        type: 'updateResponse',
+        data: '001XYZ'
+      });
+    });
+
+    const args = {
+      skipLayoutRequiredFieldCheck: 'TRUE'
+    };
+
+    await pulsar.update(
+      'Account',
+      '001XYZ',
+      {
+        Name: 'Updated Name'
+      },
+      args
+    );
+
+    expect(mockSend).toHaveBeenCalledWith(
+      {
+        type: 'update',
+        object: 'Account',
+        data: {
+          Name: 'Updated Name',
+          Id: '001XYZ'
+        },
+        args: {
+          skipLayoutRequiredFieldCheck: 'TRUE'
+        }
+      },
+      expect.any(Function)
+    );
+  });
+
+  test('includes an empty args object when args are not provided', async () => {
+    mockSend.mockImplementation((_request, callback) => {
+      callback({
+        type: 'updateResponse',
+        data: '001XYZ'
+      });
+    });
+
+    await pulsar.update(
+      'Account',
+      '001XYZ',
+      {
+        Name: 'Updated Name'
+      }
+    );
+
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: {}
+      }),
+      expect.any(Function)
+    );
+  });
+
+  test('uses the explicit id argument when fields also contains an Id', async () => {
+    mockSend.mockImplementation((_request, callback) => {
+      callback({
+        type: 'updateResponse',
+        data: '001CORRECT'
+      });
+    });
+
+    await pulsar.update(
+      'Account',
+      '001CORRECT',
+      {
+        Id: '001INCORRECT',
+        Name: 'Updated Name'
+      }
+    );
+
+    expect(mockSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          Id: '001CORRECT',
+          Name: 'Updated Name'
+        }
+      }),
+      expect.any(Function)
+    );
+  });
+
+  test('does not mutate the supplied fields object', async () => {
+    mockSend.mockImplementation((_request, callback) => {
+      callback({
+        type: 'updateResponse',
+        data: '001XYZ'
+      });
+    });
+
+    const fields = {
+      Name: 'Updated Name',
+      Phone: '(555) 867-5309'
+    };
+
+    await pulsar.update('Account', '001XYZ', fields);
+
+    expect(fields).toEqual({
+      Name: 'Updated Name',
+      Phone: '(555) 867-5309'
+    });
+
+    expect(fields).not.toHaveProperty('Id');
+  });
+
+  test.each([
+    ['undefined', undefined],
+    ['an empty string', ''],
+    ['a number', 123],
+    ['an object', { Id: '001XYZ' }]
+  ])('rejects when objectName is %s', async (_description, objectName) => {
+    await expect(
+      pulsar.update(
+        objectName,
+        '001XYZ',
+        {
+          Name: 'Updated Name'
+        }
+      )
+    ).rejects.toThrow(
+      'Update requires a valid objectName string.'
+    );
+
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['undefined', undefined],
+    ['null', null],
+    ['an empty string', ''],
+    ['a number', 123],
+    ['an object', { Id: '001XYZ' }]
+  ])('rejects when id is %s', async (_description, id) => {
+    await expect(
+      pulsar.update(
+        'Account',
+        id,
+        {
+          Name: 'Updated Name'
+        }
+      )
+    ).rejects.toThrow(
+      "Update requires a valid 'id' string."
+    );
+
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['null', null],
+    ['a string', 'Name=Updated'],
+    ['a number', 123],
+    ['an array', [{ Name: 'Updated Name' }]]
+  ])('rejects when fields is %s', async (_description, fields) => {
+    await expect(
+      pulsar.update('Account', '001XYZ', fields)
+    ).rejects.toThrow(
+      'Update requires a valid fields object.'
+    );
+
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  test('rejects when Pulsar returns an update error', async () => {
+    mockSend.mockImplementation((_request, callback) => {
+      callback({
+        type: 'error',
+        object: 'Account',
+        data: 'Update failed'
+      });
+    });
+
+    await expect(
+      pulsar.update(
+        'Account',
+        '001XYZ',
+        {
+          Name: 'Bad Update'
+        }
+      )
+    ).rejects.toThrow('Update failed');
+
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  test('rejects when the bridge is not initialized', async () => {
+    pulsar = new Pulsar();
+
+    await expect(
+      pulsar.update(
+        'Account',
+        '001XYZ',
+        {
+          Name: 'Updated Name'
+        }
+      )
+    ).rejects.toThrow('Pulsar bridge not initialized');
+
+    expect(mockSend).not.toHaveBeenCalled();
   });
 });
 
