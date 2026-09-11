@@ -138,11 +138,3 @@ Visual previews are **opt-in per project**: the `pulsar-preview` skill asks once
 the choice (`visual-previews: mockups | dev-server | none`) under a `## Project preferences`
 section at the end of this file — respect it. Developers iterating on the local development
 server usually skip previews.
-
-## Reference material in this repo (when present)
-
-- `wiki/` — export of the Luminix developer wiki (platform truth; JS examples may be pre-SDK).
-- `wiki/supplement/` — developer-critical pages missing from the export, fetched 2026-07-03.
-- `research/` — verified SDK API inventory (`sdk-inventory.md`), SDK docs-drift catalog, wiki
-  cross-reference and completeness audits.
-- `docs/DESIGN.md` — why this repo is laid out the way it is.
