@@ -13,6 +13,8 @@ A lightweight JavaScript wrapper for working with the Pulsar JS Bridge in Pulsar
 - All values stored in the SQLite Database are stored as strings.
 
 ## 📦 Getting Started
+
+To get your AI coding harnesses started quickly with the Pulsar SDK, install the Pulsar SDK Agent Skills: `npx skills add https://github.com/luminixinc/pulsar-sdk`
  
 To make use of the Pulsar SDK, you'll need to familiarize yourself with the [process of creating a .pulsarapp](https://luminix.atlassian.net/wiki/spaces/PD/pages/49152017/Pulsar+as+a+Platform#Bundling-and-deploying-your-webapp-as-.pulsarapp-format). 
 

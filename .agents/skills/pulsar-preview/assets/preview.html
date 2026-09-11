@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!--
+  preview.html — run the REAL .pulsarapp in a normal browser against mock data.
+  Copy this file (with pulsar-browser-mock.js and your fixtures.js) into the app repo's
+  mockups/ directory. NEVER include mockups/ in the .pulsarapp bundle.
+
+  Serve over HTTP (ES modules break on file://):
+    node <skill>/scripts/serve.mjs <dir-containing-app-and-mockups>
+  then open  http://localhost:<port>/mockups/preview.html
+
+  Query params:
+    ?app=../index.html   path (relative to this file) of the app page to load
+    ?debug=1             show the mock traffic panel
+    ?clean=1             hide the MOCK badge (screenshots)
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulsar preview (mock)</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  #app { border: 0; width: 100%; height: 100%; display: block; }
+  #badge {
+    position: fixed; right: 10px; bottom: 10px; z-index: 9999;
+    background: #b7791f; color: #fff; font: 600 11px/1 sans-serif;
+    padding: 5px 8px; border-radius: 4px; letter-spacing: .5px; opacity: .9;
+  }
+  #debug {
+    position: fixed; left: 0; right: 0; bottom: 0; max-height: 40%; overflow: auto;
+    background: #101828; color: #d7e3f4; font: 11px/1.5 monospace; padding: 8px;
+    z-index: 9998; white-space: pre-wrap; display: none;
+  }
+</style>
+</head>
+<body>
+<iframe id="app" title="app preview"></iframe>
+<div id="badge">MOCK DATA</div>
+<pre id="debug"></pre>
+
+<script src="pulsar-browser-mock.js"></script>
+<script type="module">
+  import fixtures from './fixtures.js';
+
+  const params = new URLSearchParams(location.search);
+
+  // Install BEFORE the iframe loads: the SDK inside the iframe checks
+  // window.parent.pulsar.bridge first and resolves synchronously.
+  window.__pulsarMock.install({ fixtures, mode: 'embedded-parent' });
+
+  // Support the FSL iframe-resize contract so SFS-style apps behave.
+  window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'refresh' && typeof e.data.height === 'string') {
+      const app = document.getElementById('app');
+      app.style.height = e.data.height === '*' ? '100%' : e.data.height;
+    }
+  });
+
+  if (params.get('clean') === '1') document.getElementById('badge').remove();
+  if (params.get('debug') === '1') {
+    const panel = document.getElementById('debug');
+    panel.style.display = 'block';
+    setInterval(() => {
+      panel.textContent = window.__pulsarMock.log
+        .map((e) => e.type + ' ' + JSON.stringify(e.request?.data ?? '') + ' -> '
+          + String(JSON.stringify(e.response)).slice(0, 200))
+        .join('\n');
+    }, 500);
+  }
+
+  // Load the real app last. Pass-through extra params (e.g. ref_id) to the app URL.
+  const appUrl = new URL(params.get('app') || '../index.html', location.href);
+  for (const [k, v] of params) if (!['app', 'debug', 'clean'].includes(k)) appUrl.searchParams.set(k, v);
+  document.getElementById('app').src = appUrl.href;
+</script>
+</body>
+</html>
