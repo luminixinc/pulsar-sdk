@@ -1,6 +1,6 @@
 ---
 name: pulsar-files
-description: Work with Salesforce Files, media, and documents from a Pulsar .pulsarapp. Use when creating/reading/querying/deleting Salesforce Files (ContentDocument/ContentVersion), capturing camera photos or picking device files, resolving offline Content Library URLs, displaying rich-text images offline, reading/posting Chatter feeds, or generating PDFs with saveAs and attaching them as Files or FSL Service Reports.
+description: Salesforce Files, media and documents in a .pulsarapp. Use for ContentDocument/ContentVersion create/read/query/delete, camera and file pickers, offline Content Library URLs, rich-text images, Chatter feeds, or PDFs via saveAs.
 ---
 
 # Files, media, Chatter & PDFs in a .pulsarapp
@@ -8,7 +8,45 @@ description: Work with Salesforce Files, media, and documents from a Pulsar .pul
 Prerequisites: `await pulsar.init()` exactly once (see `create-pulsarapp`), and **Salesforce
 Files support enabled in Pulsar** — verbatim wiki: "In order to use the below APIs, you must
 enable Salesforce Files support within Pulsar." (Salesforce Files API, verified 2026-07-03).
-Wrap every call in `try/catch`; AGENTS.md global rules apply.
+Wrap every call in `try/catch`; the Always rules above apply.
+
+<!-- BEGIN pulsar-non-negotiables (generated block — edit the canonical skill, not this copy) -->
+
+## Always — Pulsar platform rules
+
+These apply to every `.pulsarapp`, in every skill. They are not style preferences; each one
+corresponds to a way real apps break on device.
+
+1. **Use the Pulsar JS SDK for every JSAPI call** (`pulsar.js` from
+   <https://github.com/luminixinc/pulsar-sdk>). Never hand-roll `bridge.send(...)`, never listen for
+   `WebViewJavascriptBridgeReady`, never touch `window.parent.pulsar.bridge`. Wiki JS examples
+   predate the SDK — trust them for request/response *shapes*, never for calling style.
+2. **`await pulsar.init()` exactly once per page load**, before any other SDK call, and wrap every
+   call in `try/catch` — SDK methods reject with `Error`. Some failures resolve *normally* and must
+   be checked in the result (batch `summary.success === 'FALSE'`, `getSetting` → `Exists: 'FALSE'`).
+3. **Everything is a string.** Local-database values and most JSAPI results are strings: booleans
+   are `'TRUE'`/`'FALSE'`, numbers are `'42.0'`, coordinates are strings. Compare and convert
+   explicitly; never rely on truthiness or `===` against a number or boolean.
+4. **Never run create/update/delete concurrently, and never call a write without `await`.** A bare
+   `save();` is a bug. No `Promise.all` over writes. Awaiting inside one event handler is not
+   enough — route every UI-triggered write through one shared single-flight queue, and use the
+   batch endpoints (`deleteBatch`, `createSFFileBatch`, …) for bulk work.
+5. **18-character Salesforce IDs** in code. Dates are `YYYY-MM-DD`; datetimes are
+   `YYYY-MM-DDThh:mm:ss.sssZ` (UTC). Format before writing — SQLite stores them as strings.
+6. **Offline is the default.** Reads hit the local database. Check `getOnlineStatus()` before
+   anything online-only and provide a fallback. Don't assume the org is synced at startup. Never
+   call `read()` without filters — it returns the whole table; paginate with `select()` +
+   `ORDER BY … LIMIT/OFFSET`.
+7. **Never assume a field exists.** Org schemas differ — check `getSObjectSchema()` or ask the user
+   before referencing a custom field or relationship. JSON values may arrive pre-parsed or as
+   strings depending on Pulsar version: check `typeof` before `JSON.parse`.
+8. **Bundle rules.** Ship everything inside the zip (no CDN, no network at runtime), use relative
+   paths, put `index.html` at the zip root, and namespace every other file under one app-unique
+   directory — never `js/`, `css/`, `lib/`, `assets/`, or root-level assets, because all of a
+   user's bundles unzip into one shared directory. Avoid `<button type="submit">`: a default form
+   submit reloads the page inside Pulsar and re-runs your init.
+
+<!-- END pulsar-non-negotiables -->
 
 ## Choosing an API
 

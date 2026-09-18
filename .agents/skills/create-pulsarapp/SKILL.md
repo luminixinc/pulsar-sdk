@@ -1,6 +1,6 @@
 ---
 name: create-pulsarapp
-description: Scaffold, bundle, and deploy a custom Pulsar for Salesforce web app (.pulsarapp). Use when creating a new Pulsar web app project, setting up pulsar.js and the init pattern, zipping/deploying a .pulsarapp to Salesforce, or wiring launch points (home-page tab, record-detail button, home-page replacement, deep link).
+description: Scaffold, bundle, and deploy a Pulsar for Salesforce web app (.pulsarapp). Use when starting a new Pulsar app, setting up pulsar.js and the init pattern, zipping and deploying the bundle to Salesforce, or wiring launch points (tab, record button, deep link).
 ---
 
 # Create a .pulsarapp
@@ -9,6 +9,44 @@ A `.pulsarapp` is a zip of plain HTML/CSS/JS that runs inside Pulsar's WebView a
 device-local Salesforce data through the Pulsar JS SDK. No build step is required (any framework
 that emits static files works); assume no network at runtime — the device may be offline at any
 moment, so the bundle must not depend on CDNs or any network-loaded resource.
+
+<!-- BEGIN pulsar-non-negotiables (generated block — edit the canonical skill, not this copy) -->
+
+## Always — Pulsar platform rules
+
+These apply to every `.pulsarapp`, in every skill. They are not style preferences; each one
+corresponds to a way real apps break on device.
+
+1. **Use the Pulsar JS SDK for every JSAPI call** (`pulsar.js` from
+   <https://github.com/luminixinc/pulsar-sdk>). Never hand-roll `bridge.send(...)`, never listen for
+   `WebViewJavascriptBridgeReady`, never touch `window.parent.pulsar.bridge`. Wiki JS examples
+   predate the SDK — trust them for request/response *shapes*, never for calling style.
+2. **`await pulsar.init()` exactly once per page load**, before any other SDK call, and wrap every
+   call in `try/catch` — SDK methods reject with `Error`. Some failures resolve *normally* and must
+   be checked in the result (batch `summary.success === 'FALSE'`, `getSetting` → `Exists: 'FALSE'`).
+3. **Everything is a string.** Local-database values and most JSAPI results are strings: booleans
+   are `'TRUE'`/`'FALSE'`, numbers are `'42.0'`, coordinates are strings. Compare and convert
+   explicitly; never rely on truthiness or `===` against a number or boolean.
+4. **Never run create/update/delete concurrently, and never call a write without `await`.** A bare
+   `save();` is a bug. No `Promise.all` over writes. Awaiting inside one event handler is not
+   enough — route every UI-triggered write through one shared single-flight queue, and use the
+   batch endpoints (`deleteBatch`, `createSFFileBatch`, …) for bulk work.
+5. **18-character Salesforce IDs** in code. Dates are `YYYY-MM-DD`; datetimes are
+   `YYYY-MM-DDThh:mm:ss.sssZ` (UTC). Format before writing — SQLite stores them as strings.
+6. **Offline is the default.** Reads hit the local database. Check `getOnlineStatus()` before
+   anything online-only and provide a fallback. Don't assume the org is synced at startup. Never
+   call `read()` without filters — it returns the whole table; paginate with `select()` +
+   `ORDER BY … LIMIT/OFFSET`.
+7. **Never assume a field exists.** Org schemas differ — check `getSObjectSchema()` or ask the user
+   before referencing a custom field or relationship. JSON values may arrive pre-parsed or as
+   strings depending on Pulsar version: check `typeof` before `JSON.parse`.
+8. **Bundle rules.** Ship everything inside the zip (no CDN, no network at runtime), use relative
+   paths, put `index.html` at the zip root, and namespace every other file under one app-unique
+   directory — never `js/`, `css/`, `lib/`, `assets/`, or root-level assets, because all of a
+   user's bundles unzip into one shared directory. Avoid `<button type="submit">`: a default form
+   submit reloads the page inside Pulsar and re-runs your init.
+
+<!-- END pulsar-non-negotiables -->
 
 ## Scaffold
 
@@ -130,10 +168,10 @@ During development, don't re-upload on every change — use the local developmen
 ## Iterating
 
 - Development loop: local dev server + Pulsar's page-refresh button (`pulsar-dev-debug` skill).
-- Data access, sync, files, metadata, native-screen navigation each have their own skill —
-  see the repo's AGENTS.md skills table. The non-negotiable platform rules (all values are
-  strings; never run writes concurrently; 18-char IDs; Salesforce date formats) are in
-  AGENTS.md and apply to every app.
+- Sibling skills cover the rest: the `pulsar-data-access`, `pulsar-sync`, `pulsar-files`,
+  `pulsar-metadata`, `pulsar-native-ui`, `pulsar-psl`, `pulsar-sfs-embedded`,
+  `pulsar-dev-debug` and `pulsar-preview` skills. Each one restates the Always rules above,
+  so those hold whether or not the others are installed.
 
 ## References
 
