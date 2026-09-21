@@ -56,6 +56,9 @@ Use the official **Pulsar JS SDK** (`pulsar.js` from
 
 ## Non-negotiable platform constraints
 
+A condensed version of these ships *inside every skill*, so the rules survive when a skill is
+installed on its own and this file is nowhere in sight.
+
 1. **Everything is a string.** All values in the local SQLite database — and most JSAPI
    results — are strings: booleans are `'TRUE'`/`'FALSE'`, numbers are `'42.0'`, and
    `getLocation()` returns string coordinates. Compare and convert explicitly; never trust a
@@ -117,9 +120,10 @@ Use the official **Pulsar JS SDK** (`pulsar.js` from
 
 ## Skills
 
-Task-specific instructions live in Agent Skills (canonical home: `.agents/skills/`; Claude Code
-and Qwen Code discover the same skills via generated stubs in `.claude/skills/` and
-`.qwen/skills/`):
+Task-specific instructions live in Agent Skills. The canonical home is `.agents/skills/` — read
+natively by Codex CLI and Gemini CLI, and the folder `npx skills add` installs from. Claude Code
+reads only `.claude/skills/` and Qwen Code only `.qwen/skills/`, so both hold a byte-identical
+copy of every skill folder.
 
 | Skill | Use when |
 | --- | --- |

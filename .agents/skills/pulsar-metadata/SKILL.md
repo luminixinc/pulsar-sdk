@@ -1,6 +1,6 @@
 ---
 name: pulsar-metadata
-description: Read Salesforce metadata offline in a Pulsar .pulsarapp — object schema (DescribeSObjectResult), page layouts, compact layouts, picklists, list views, and fieldsets — through the Pulsar JS SDK to build dynamic, org-configurable UI. Use when rendering record detail/edit forms that mirror org page layouts, building picklist or dependent-picklist inputs, reproducing org list views against the local database, driving displayed fields from fieldsets or compact layouts, or looking up field types, record types, and child relationships from schema.
+description: Read Salesforce metadata offline in a .pulsarapp — object schema, page and compact layouts, picklists, list views, fieldsets. Use to build record forms that mirror org page layouts, dependent picklists, list views, or to look up field and record types.
 ---
 
 # Metadata-driven UI in a .pulsarapp
@@ -11,6 +11,44 @@ hardcoding field lists — admins then reconfigure the org without an app redepl
 
 Prerequisite: `const pulsar = new Pulsar(); await pulsar.init();` exactly once (see
 `create-pulsarapp`). Wrap every call in `try/catch`.
+
+<!-- BEGIN pulsar-non-negotiables (generated block — edit the canonical skill, not this copy) -->
+
+## Always — Pulsar platform rules
+
+These apply to every `.pulsarapp`, in every skill. They are not style preferences; each one
+corresponds to a way real apps break on device.
+
+1. **Use the Pulsar JS SDK for every JSAPI call** (`pulsar.js` from
+   <https://github.com/luminixinc/pulsar-sdk>). Never hand-roll `bridge.send(...)`, never listen for
+   `WebViewJavascriptBridgeReady`, never touch `window.parent.pulsar.bridge`. Wiki JS examples
+   predate the SDK — trust them for request/response *shapes*, never for calling style.
+2. **`await pulsar.init()` exactly once per page load**, before any other SDK call, and wrap every
+   call in `try/catch` — SDK methods reject with `Error`. Some failures resolve *normally* and must
+   be checked in the result (batch `summary.success === 'FALSE'`, `getSetting` → `Exists: 'FALSE'`).
+3. **Everything is a string.** Local-database values and most JSAPI results are strings: booleans
+   are `'TRUE'`/`'FALSE'`, numbers are `'42.0'`, coordinates are strings. Compare and convert
+   explicitly; never rely on truthiness or `===` against a number or boolean.
+4. **Never run create/update/delete concurrently, and never call a write without `await`.** A bare
+   `save();` is a bug. No `Promise.all` over writes. Awaiting inside one event handler is not
+   enough — route every UI-triggered write through one shared single-flight queue, and use the
+   batch endpoints (`deleteBatch`, `createSFFileBatch`, …) for bulk work.
+5. **18-character Salesforce IDs** in code. Dates are `YYYY-MM-DD`; datetimes are
+   `YYYY-MM-DDThh:mm:ss.sssZ` (UTC). Format before writing — SQLite stores them as strings.
+6. **Offline is the default.** Reads hit the local database. Check `getOnlineStatus()` before
+   anything online-only and provide a fallback. Don't assume the org is synced at startup. Never
+   call `read()` without filters — it returns the whole table; paginate with `select()` +
+   `ORDER BY … LIMIT/OFFSET`.
+7. **Never assume a field exists.** Org schemas differ — check `getSObjectSchema()` or ask the user
+   before referencing a custom field or relationship. JSON values may arrive pre-parsed or as
+   strings depending on Pulsar version: check `typeof` before `JSON.parse`.
+8. **Bundle rules.** Ship everything inside the zip (no CDN, no network at runtime), use relative
+   paths, put `index.html` at the zip root, and namespace every other file under one app-unique
+   directory — never `js/`, `css/`, `lib/`, `assets/`, or root-level assets, because all of a
+   user's bundles unzip into one shared directory. Avoid `<button type="submit">`: a default form
+   submit reloads the page inside Pulsar and re-runs your init.
+
+<!-- END pulsar-non-negotiables -->
 
 ## Choosing a metadata API
 
@@ -38,7 +76,7 @@ Prerequisite: `const pulsar = new Pulsar(); await pulsar.init();` exactly once (
    430-433; JSDoc: "If both are provided, recordTypeId takes precedence"), while
    `getLayoutSections` (482-486), `getLayoutFields` (552-553), and `getCompactLayoutFields`
    (599-600) send **RecordTypeName** when both are given. Rule: **pass exactly one, never
-   both.** (The wiki "Object Layout Information" and the SDK's own `docs/pulsar-sdk.md` claim
+   both.** (The wiki "Object Layout Information" and the pulsar-sdk repo's `docs/pulsar-sdk.md` claim
    name-precedence for `getLayout` — the code is authoritative.)
 2. Signatures are positional: `(objectName, recordTypeId, recordTypeName, layoutMode?)`. To
    use a record type **developer name** (not its label), pass `undefined` in the id slot:

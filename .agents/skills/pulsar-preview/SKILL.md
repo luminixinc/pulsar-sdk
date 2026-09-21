@@ -1,22 +1,70 @@
 ---
 name: pulsar-preview
-description: Produce visual previews of Pulsar .pulsarapp UI work — static HTML mockups, the real app running in a normal desktop browser via a bundled mock Pulsar bridge, and headless screenshots. Use when the user asks for a mockup/preview/screenshot/"show me", before implementing non-trivial UI changes (propose-first), or to confirm UI work after implementing it. Previews are opt-in per project; respect the visual-previews preference recorded in the project's AGENTS.md.
+description: Show Pulsar .pulsarapp UI work visually — static HTML mockups, the real app in a desktop browser via a bundled mock Pulsar bridge, and headless screenshots. Use when asked for a mockup, preview or screenshot, or before and after non-trivial UI changes.
+compatibility: Tier 1 needs nothing. Tier 2 needs Node.js for a local static server; tier 3 additionally needs puppeteer.
 ---
 
 # Visual previews for .pulsarapp work
 
 A `.pulsarapp` cannot render outside Pulsar — `pulsar.init()` rejects after 5 seconds without
 a bridge. This skill gives the user eyes on UI work anyway, three ways. Previews approximate
-device rendering: **the device / local dev server (`pulsar-dev-debug`) remains the truth.**
+device rendering: **the device / local dev server (the `pulsar-dev-debug` skill) remains the
+truth.**
+
+Throughout this skill, **`<skill-dir>` is the directory holding this SKILL.md** — wherever your
+harness installed it (`.agents/skills/pulsar-preview/`, `.claude/skills/pulsar-preview/`,
+`~/.agents/skills/pulsar-preview/`, …). Its `assets/`, `scripts/` and `references/` sit next to
+this file. If you cannot tell where that is, run
+`find . ~ -maxdepth 6 -type d -name pulsar-preview 2>/dev/null` or ask the user.
+
+<!-- BEGIN pulsar-non-negotiables (generated block — edit the canonical skill, not this copy) -->
+
+## Always — Pulsar platform rules
+
+These apply to every `.pulsarapp`, in every skill. They are not style preferences; each one
+corresponds to a way real apps break on device.
+
+1. **Use the Pulsar JS SDK for every JSAPI call** (`pulsar.js` from
+   <https://github.com/luminixinc/pulsar-sdk>). Never hand-roll `bridge.send(...)`, never listen for
+   `WebViewJavascriptBridgeReady`, never touch `window.parent.pulsar.bridge`. Wiki JS examples
+   predate the SDK — trust them for request/response *shapes*, never for calling style.
+2. **`await pulsar.init()` exactly once per page load**, before any other SDK call, and wrap every
+   call in `try/catch` — SDK methods reject with `Error`. Some failures resolve *normally* and must
+   be checked in the result (batch `summary.success === 'FALSE'`, `getSetting` → `Exists: 'FALSE'`).
+3. **Everything is a string.** Local-database values and most JSAPI results are strings: booleans
+   are `'TRUE'`/`'FALSE'`, numbers are `'42.0'`, coordinates are strings. Compare and convert
+   explicitly; never rely on truthiness or `===` against a number or boolean.
+4. **Never run create/update/delete concurrently, and never call a write without `await`.** A bare
+   `save();` is a bug. No `Promise.all` over writes. Awaiting inside one event handler is not
+   enough — route every UI-triggered write through one shared single-flight queue, and use the
+   batch endpoints (`deleteBatch`, `createSFFileBatch`, …) for bulk work.
+5. **18-character Salesforce IDs** in code. Dates are `YYYY-MM-DD`; datetimes are
+   `YYYY-MM-DDThh:mm:ss.sssZ` (UTC). Format before writing — SQLite stores them as strings.
+6. **Offline is the default.** Reads hit the local database. Check `getOnlineStatus()` before
+   anything online-only and provide a fallback. Don't assume the org is synced at startup. Never
+   call `read()` without filters — it returns the whole table; paginate with `select()` +
+   `ORDER BY … LIMIT/OFFSET`.
+7. **Never assume a field exists.** Org schemas differ — check `getSObjectSchema()` or ask the user
+   before referencing a custom field or relationship. JSON values may arrive pre-parsed or as
+   strings depending on Pulsar version: check `typeof` before `JSON.parse`.
+8. **Bundle rules.** Ship everything inside the zip (no CDN, no network at runtime), use relative
+   paths, put `index.html` at the zip root, and namespace every other file under one app-unique
+   directory — never `js/`, `css/`, `lib/`, `assets/`, or root-level assets, because all of a
+   user's bundles unzip into one shared directory. Avoid `<button type="submit">`: a default form
+   submit reloads the page inside Pulsar and re-runs your init.
+
+<!-- END pulsar-non-negotiables -->
 
 ## Is this project using previews? (ask once)
 
-Check the project's AGENTS.md for a `## Project preferences` section with a
+Check the project's agent-instructions file — `AGENTS.md`, or `CLAUDE.md`/`GEMINI.md`/
+`QWEN.md` if that is what the project uses — for a `## Project preferences` section with a
 `visual-previews:` line. If absent and you're about to do UI work, ask once:
 *"Want visual previews of UI changes (mockups/screenshots in the session), or do you watch
-changes live on the dev server?"* — then append to the project's AGENTS.md:
+changes live on the dev server?"* — then append this to that file (creating `AGENTS.md` if the
+project has no such file):
 
-```markdown
+```text
 ## Project preferences
 
 <!-- Recorded by coding agents. Ask the user before changing. -->
@@ -35,9 +83,10 @@ changes live on the dev server?"* — then append to the project's AGENTS.md:
 | 2. Live preview | The REAL app in any browser via `assets/pulsar-browser-mock.js` + `preview.html` + app-specific `fixtures.js` | App exists; user has Node (for the tiny static server) |
 | 3. Screenshots | Headless PNGs of tier 1/2 pages via `scripts/screenshot.mjs` | puppeteer resolves (project or `$PUPPETEER_DIR`); pushes images into the session — best for remote/mobile |
 
-Presenting: in Claude Code, send/attach the HTML or PNG so it renders in the session (this is
-what remote-control users see on web/mobile). In other harnesses, print the absolute path and
-the serve command. **Never describe a screenshot you haven't looked at.**
+Presenting: if your harness can put a file or image into the conversation, send the PNG (or the
+mockup HTML) so the user sees it without leaving the session — that is what matters most for
+someone reading on a phone. If it cannot, print the absolute path plus the serve command and
+URL. **Never describe a screenshot you haven't looked at.**
 
 ## Workflow: propose → implement → confirm
 
@@ -69,7 +118,7 @@ mockups/pulsar-browser-mock.js   # the mock bridge (verbatim copy)
 mockups/preview.html             # wiring page (adapt ?app= default if needed)
 mockups/fixtures.js              # app-specific sample data — YOU author this
 # then serve the APP ROOT (parent of mockups/) and open the preview:
-node <this-skill>/scripts/serve.mjs <app-root>      # prints http://localhost:<port>/
+node <skill-dir>/scripts/serve.mjs <app-root>      # prints http://localhost:<port>/
 # → open /mockups/preview.html   (?debug=1 = traffic panel; ?ref_id=… forwarded to the app)
 ```
 
@@ -91,7 +140,7 @@ embedded-vs-native take the embedded path.
 ## Tier 3 — screenshots into the session
 
 ```bash
-node <this-skill>/scripts/screenshot.mjs <app-root> mockups/preview.html \
+node <skill-dir>/scripts/screenshot.mjs <app-root> mockups/preview.html \
   --out <app-root>/mockups/screenshots/list.png --wait-for '.rowitem' \
   --param ref_id=001MOCK00000000001        # any extra params reach the app
 ```

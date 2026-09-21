@@ -2,6 +2,18 @@
 
 A lightweight JavaScript wrapper for working with the Pulsar JS Bridge in Pulsar environments. Includes robust initialization and helper methods for all JSAPI methods.
 
+## 🤖 Agent Skills — quick start
+
+Teach your AI coding agent to build Pulsar apps:
+
+```bash
+npx skills add https://github.com/luminixinc/pulsar-sdk
+```
+
+Pick your agent(s) when prompted. Claude Code, Codex, Cursor, Gemini CLI, Qwen Code and 70+ others are supported. Add `--list` to preview the skills, `--all` to install every skill for every agent, or `-g` to install for all your projects.
+
+> **The skills are evolving quickly.** We are still refining patterns and incorporating feedback, so skills may be renamed, restructured, or removed between releases. If you have forked or synced this repository, expect upstream changes that may conflict with local modifications. This repository is always the source of truth. Re-run `npx skills add` to pick up the latest version.
+
 ## 🚀 Features
 
 - Automatic detection of Pulsar bridge context (native or embedded)

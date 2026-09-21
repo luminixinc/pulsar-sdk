@@ -1,6 +1,6 @@
 ---
 name: pulsar-psl
-description: Author and debug Pulsar Settings Language (PSL) — the declarative action language stored in Pulsar Setting values and executed natively by the Pulsar client (not JavaScript). Use when building native custom record-detail buttons, PSL execution triggers (beforeView, beforeEdit, beforeSave, beforeDelete, onCreate, onSave, onDelete, afterSave, onBarcodeScan, afterLogin, field afterUpdate), before/after sync triggers (including automatic debug-log upload to Salesforce via SFCreate AttachLogFile=TRUE), mapping @@ special value variables to their SDK equivalents, launching a .pulsarapp from PSL (LaunchDocument), or reasoning about which admin-configured PSL fires when a web app writes records through the JSAPI.
+description: Pulsar Settings Language (PSL) — the declarative action language the Pulsar client runs natively, not JavaScript. Use for native custom buttons, execution triggers (beforeSave, onBarcodeScan, afterLogin…), sync triggers, @@ special value variables, and LaunchDocument.
 ---
 
 # Pulsar Settings Language (PSL)
@@ -14,6 +14,44 @@ methods (below). Prefer platform features first: "we recommend that you use Sale
 validation rules if possible" and SFDC Quick Actions over new PSL buttons (wiki "PSL Execution
 Triggers" / "Custom Buttons" Spring 2019 note, verified 2026-07-03); the JS button-equivalent
 is `await pulsar.executeQuickAction(name, contextId, fields)` (src/pulsar.js:2281-2290).
+
+<!-- BEGIN pulsar-non-negotiables (generated block — edit the canonical skill, not this copy) -->
+
+## Always — Pulsar platform rules
+
+These apply to every `.pulsarapp`, in every skill. They are not style preferences; each one
+corresponds to a way real apps break on device.
+
+1. **Use the Pulsar JS SDK for every JSAPI call** (`pulsar.js` from
+   <https://github.com/luminixinc/pulsar-sdk>). Never hand-roll `bridge.send(...)`, never listen for
+   `WebViewJavascriptBridgeReady`, never touch `window.parent.pulsar.bridge`. Wiki JS examples
+   predate the SDK — trust them for request/response *shapes*, never for calling style.
+2. **`await pulsar.init()` exactly once per page load**, before any other SDK call, and wrap every
+   call in `try/catch` — SDK methods reject with `Error`. Some failures resolve *normally* and must
+   be checked in the result (batch `summary.success === 'FALSE'`, `getSetting` → `Exists: 'FALSE'`).
+3. **Everything is a string.** Local-database values and most JSAPI results are strings: booleans
+   are `'TRUE'`/`'FALSE'`, numbers are `'42.0'`, coordinates are strings. Compare and convert
+   explicitly; never rely on truthiness or `===` against a number or boolean.
+4. **Never run create/update/delete concurrently, and never call a write without `await`.** A bare
+   `save();` is a bug. No `Promise.all` over writes. Awaiting inside one event handler is not
+   enough — route every UI-triggered write through one shared single-flight queue, and use the
+   batch endpoints (`deleteBatch`, `createSFFileBatch`, …) for bulk work.
+5. **18-character Salesforce IDs** in code. Dates are `YYYY-MM-DD`; datetimes are
+   `YYYY-MM-DDThh:mm:ss.sssZ` (UTC). Format before writing — SQLite stores them as strings.
+6. **Offline is the default.** Reads hit the local database. Check `getOnlineStatus()` before
+   anything online-only and provide a fallback. Don't assume the org is synced at startup. Never
+   call `read()` without filters — it returns the whole table; paginate with `select()` +
+   `ORDER BY … LIMIT/OFFSET`.
+7. **Never assume a field exists.** Org schemas differ — check `getSObjectSchema()` or ask the user
+   before referencing a custom field or relationship. JSON values may arrive pre-parsed or as
+   strings depending on Pulsar version: check `typeof` before `JSON.parse`.
+8. **Bundle rules.** Ship everything inside the zip (no CDN, no network at runtime), use relative
+   paths, put `index.html` at the zip root, and namespace every other file under one app-unique
+   directory — never `js/`, `css/`, `lib/`, `assets/`, or root-level assets, because all of a
+   user's bundles unzip into one shared directory. Avoid `<button type="submit">`: a default form
+   submit reloads the page inside Pulsar and re-runs your init.
+
+<!-- END pulsar-non-negotiables -->
 
 ## Syntax in one screen
 
@@ -42,7 +80,7 @@ EMPTY{ Action=Alert; Message=No contacts; }
   `DismissAlert` defaults `AlertShouldValidate=FALSE`, `DismissCurrentWindow` defaults `TRUE` —
   asymmetric. `BranchChoice` alerts must be the LAST action in a block.
 - SqlQuery is raw SQLite access — "extreme care should be taken with its use … limit your
-  access here to 'SELECT' or read type queries" (full caveat in the language reference); UPDATE
+  access here to 'SELECT' or read type queries" (full caveat in `references/psl-language-reference.md`); UPDATE
   skips validation rules, formula and roll-up recalc — same hazards as JS `updateQuery`.
 - Full action catalog, quoting traps, Loop/BreakLoop: `references/psl-language-reference.md`.
 
@@ -130,7 +168,7 @@ Full tables, sentinels (`'1970-01-01T00:00:00.000Z'`, `0`, blank = "never happen
 
 ```js
 // Launched via PSL LaunchDocument: current record + any SetVar vars arrive as URL params.
-// (JS prerequisites — init once, try/catch everywhere — per AGENTS.md.)
+// (JS prerequisites — init once, try/catch everywhere — per the Always rules above.)
 const params = new URLSearchParams(window.location.search);
 const objectId = params.get('ObjectID');       // ObjectID + ObjectType always included (wiki casing)
 try {

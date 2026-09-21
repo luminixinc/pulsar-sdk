@@ -1,16 +1,54 @@
 ---
 name: pulsar-native-ui
-description: Drive native Pulsar screens and device features from a Pulsar for Salesforce .pulsarapp. Use when opening native record view/edit/create/list/lookup screens or quick actions, scanning barcodes, composing email, reading device location or user/platform info, fetching Pulsar Settings or Custom Labels (i18n), guarding page exit (leave-page message, exit), opening external URLs, or building pulsar:// deep links — including passing arguments into a .pulsarapp via launchdocument and the custom_oauth OAuth callback flow.
+description: Drive native Pulsar screens and device features from a .pulsarapp. Use to open native record view/edit/create/list screens or quick actions, scan barcodes, compose mail, read location or user info, fetch Settings and Custom Labels, or build pulsar:// deep links.
 ---
 
 # Native Pulsar UI & device features from a .pulsarapp
 
 Everything here goes through the Pulsar JS SDK on an initialized instance (`const pulsar = new
-Pulsar(); await pulsar.init();` exactly once — see `create-pulsarapp`; global rules in
-AGENTS.md). Wrap every call in `try/catch`. Sources: wiki "Native Pulsar UI Interaction API",
+Pulsar(); await pulsar.init();` exactly once — see the `create-pulsarapp` skill). Wrap every
+call in `try/catch`. Sources: wiki "Native Pulsar UI Interaction API",
 "Pulsar General Information API", "Pulsar System Interaction API", "Pulsar Configuration API",
 "Pulsar Deep Links", "Language Support in Pulsar for Salesforce App", verified 2026-07-03; line
 numbers refer to SDK `src/pulsar.js`.
+
+<!-- BEGIN pulsar-non-negotiables (generated block — edit the canonical skill, not this copy) -->
+
+## Always — Pulsar platform rules
+
+These apply to every `.pulsarapp`, in every skill. They are not style preferences; each one
+corresponds to a way real apps break on device.
+
+1. **Use the Pulsar JS SDK for every JSAPI call** (`pulsar.js` from
+   <https://github.com/luminixinc/pulsar-sdk>). Never hand-roll `bridge.send(...)`, never listen for
+   `WebViewJavascriptBridgeReady`, never touch `window.parent.pulsar.bridge`. Wiki JS examples
+   predate the SDK — trust them for request/response *shapes*, never for calling style.
+2. **`await pulsar.init()` exactly once per page load**, before any other SDK call, and wrap every
+   call in `try/catch` — SDK methods reject with `Error`. Some failures resolve *normally* and must
+   be checked in the result (batch `summary.success === 'FALSE'`, `getSetting` → `Exists: 'FALSE'`).
+3. **Everything is a string.** Local-database values and most JSAPI results are strings: booleans
+   are `'TRUE'`/`'FALSE'`, numbers are `'42.0'`, coordinates are strings. Compare and convert
+   explicitly; never rely on truthiness or `===` against a number or boolean.
+4. **Never run create/update/delete concurrently, and never call a write without `await`.** A bare
+   `save();` is a bug. No `Promise.all` over writes. Awaiting inside one event handler is not
+   enough — route every UI-triggered write through one shared single-flight queue, and use the
+   batch endpoints (`deleteBatch`, `createSFFileBatch`, …) for bulk work.
+5. **18-character Salesforce IDs** in code. Dates are `YYYY-MM-DD`; datetimes are
+   `YYYY-MM-DDThh:mm:ss.sssZ` (UTC). Format before writing — SQLite stores them as strings.
+6. **Offline is the default.** Reads hit the local database. Check `getOnlineStatus()` before
+   anything online-only and provide a fallback. Don't assume the org is synced at startup. Never
+   call `read()` without filters — it returns the whole table; paginate with `select()` +
+   `ORDER BY … LIMIT/OFFSET`.
+7. **Never assume a field exists.** Org schemas differ — check `getSObjectSchema()` or ask the user
+   before referencing a custom field or relationship. JSON values may arrive pre-parsed or as
+   strings depending on Pulsar version: check `typeof` before `JSON.parse`.
+8. **Bundle rules.** Ship everything inside the zip (no CDN, no network at runtime), use relative
+   paths, put `index.html` at the zip root, and namespace every other file under one app-unique
+   directory — never `js/`, `css/`, `lib/`, `assets/`, or root-level assets, because all of a
+   user's bundles unzip into one shared directory. Avoid `<button type="submit">`: a default form
+   submit reloads the page inside Pulsar and re-runs your init.
+
+<!-- END pulsar-non-negotiables -->
 
 ## The one timing rule
 
@@ -54,7 +92,7 @@ does not expose (raw escape hatch in `references/navigation-and-device-reference
   (not nested). Response `{ executed, quickActionResult }` are REAL booleans — a rare exception
   to the string-flag convention; check both. Requires the PulsarSetting
   `pulsar.sync.enableQuickActions`; only 'Create' and 'Update' quick actions are supported.
-- `getQuickActions` has NO SDK wrapper — raw escape hatch in the reference;
+- `getQuickActions` has NO SDK wrapper — raw escape hatch in `references/navigation-and-device-reference.md`;
   `(await pulsar.getLayout(obj)).quickActionList` is a partial alternative (`pulsar-metadata`).
 - Known discrepancy (state when debugging): the wiki documents viewRelated's data key as `Id`
   and viewList's as `@@listviewid`; the SDK sends `parentId` and `listViewId` (src 2236, 2096).
@@ -91,7 +129,7 @@ does not expose (raw escape hatch in `references/navigation-and-device-reference
   post-processed into auto-generated Pulsar Settings to be retrievable. Get the user's locale
   from `userInfo()` (`locale`, `userlanguage`, `devicelanguage` — all-lowercase keys). Pulsar's
   own chrome ships in 19 languages; Salesforce translations flow through automatically
-  (language-ID table in the reference).
+  (language-ID table in `references/navigation-and-device-reference.md`).
 
 ## Page lifecycle
 
@@ -115,7 +153,7 @@ object type is case sensitive." and "Parameters are also case sensitive!"
   the reference). Deep links resolve against the local synced database.
 - OAuth: `pulsar.registerHandler('custom_oauth', fn)` BEFORE
   `await pulsar.displayUrl({ fullUrl: authUrl, externalBrowser: false })` with
-  `redirect_uri=pulsar://custom_oauth/callback` — full flow in the reference.
+  `redirect_uri=pulsar://custom_oauth/callback` — full flow in `references/deep-links-reference.md`.
 
 ## Worked example (barcode → lookup → native edit)
 

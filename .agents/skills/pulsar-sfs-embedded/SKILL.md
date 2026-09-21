@@ -1,6 +1,6 @@
 ---
 name: pulsar-sfs-embedded
-description: Build for Pulsar's Salesforce Field Service (SFS/FSL) environment — custom documents embedded in the SFS shell (iframe/embedded context), Field Service Mobile Flows (executeFSLFlow), service reports (getFSLTemplate, saveAs + createServiceReportFromFilePath), SFS shell navigation, SFS UI customization settings (tab bar, cards, Lightning Bolt Menu, toolbar visibility), and the native Appointments Widget. Use when a Pulsar web app runs inside Pulsar for SFS, when launching FSL flows or generating service reports, or when wiring/configuring SFS launch surfaces and screens.
+description: Build for Pulsar's Salesforce Field Service environment. Use when a .pulsarapp runs embedded in the SFS shell (iframe context), for FSL mobile flows (executeFSLFlow), service reports (getFSLTemplate, saveAs), SFS navigation, or SFS UI settings.
 ---
 
 # Pulsar for Salesforce Field Service (embedded apps + FSL APIs)
@@ -10,6 +10,44 @@ Inventory, Notifications, Profile). Custom documents plug into that shell — ta
 cards, Lightning Bolt Menu (LBM) — and render **inside iframes**: the "embedded context",
 where your page shares the PARENT document's already-initialized JS bridge.
 
+<!-- BEGIN pulsar-non-negotiables (generated block — edit the canonical skill, not this copy) -->
+
+## Always — Pulsar platform rules
+
+These apply to every `.pulsarapp`, in every skill. They are not style preferences; each one
+corresponds to a way real apps break on device.
+
+1. **Use the Pulsar JS SDK for every JSAPI call** (`pulsar.js` from
+   <https://github.com/luminixinc/pulsar-sdk>). Never hand-roll `bridge.send(...)`, never listen for
+   `WebViewJavascriptBridgeReady`, never touch `window.parent.pulsar.bridge`. Wiki JS examples
+   predate the SDK — trust them for request/response *shapes*, never for calling style.
+2. **`await pulsar.init()` exactly once per page load**, before any other SDK call, and wrap every
+   call in `try/catch` — SDK methods reject with `Error`. Some failures resolve *normally* and must
+   be checked in the result (batch `summary.success === 'FALSE'`, `getSetting` → `Exists: 'FALSE'`).
+3. **Everything is a string.** Local-database values and most JSAPI results are strings: booleans
+   are `'TRUE'`/`'FALSE'`, numbers are `'42.0'`, coordinates are strings. Compare and convert
+   explicitly; never rely on truthiness or `===` against a number or boolean.
+4. **Never run create/update/delete concurrently, and never call a write without `await`.** A bare
+   `save();` is a bug. No `Promise.all` over writes. Awaiting inside one event handler is not
+   enough — route every UI-triggered write through one shared single-flight queue, and use the
+   batch endpoints (`deleteBatch`, `createSFFileBatch`, …) for bulk work.
+5. **18-character Salesforce IDs** in code. Dates are `YYYY-MM-DD`; datetimes are
+   `YYYY-MM-DDThh:mm:ss.sssZ` (UTC). Format before writing — SQLite stores them as strings.
+6. **Offline is the default.** Reads hit the local database. Check `getOnlineStatus()` before
+   anything online-only and provide a fallback. Don't assume the org is synced at startup. Never
+   call `read()` without filters — it returns the whole table; paginate with `select()` +
+   `ORDER BY … LIMIT/OFFSET`.
+7. **Never assume a field exists.** Org schemas differ — check `getSObjectSchema()` or ask the user
+   before referencing a custom field or relationship. JSON values may arrive pre-parsed or as
+   strings depending on Pulsar version: check `typeof` before `JSON.parse`.
+8. **Bundle rules.** Ship everything inside the zip (no CDN, no network at runtime), use relative
+   paths, put `index.html` at the zip root, and namespace every other file under one app-unique
+   directory — never `js/`, `css/`, `lib/`, `assets/`, or root-level assets, because all of a
+   user's bundles unzip into one shared directory. Avoid `<button type="submit">`: a default form
+   submit reloads the page inside Pulsar and re-runs your init.
+
+<!-- END pulsar-non-negotiables -->
+
 ## Embedded context: what changes
 
 - `await pulsar.init()` handles it: it detects `window.parent.pulsar.bridge`, captures the
@@ -18,7 +56,7 @@ where your page shares the PARENT document's already-initialized JS bridge.
   hand-acquire the bridge or copy the wiki's "hybridized bridge set up function" advice.
 - After init, `pulsar.pulsar` is the parent SFS object in embedded context and **`null` in
   native context** — that's the context test. Guard every SFS-shell call with it.
-- All global .pulsarapp rules (AGENTS.md) still apply: init once, try/catch every call,
+- All the Always rules above still apply: init once, try/catch every call,
   string-typed values, sequential writes.
 
 ## Event handlers in embedded context (danger zone)
@@ -60,7 +98,7 @@ where your page shares the PARENT document's already-initialized JS bridge.
 try {
   const templates = await pulsar.getFSLTemplate();            // { 'Name': 'Id', ... }
   const templateId = templates['Standard Report'];
-  const filePath = await pulsar.saveAs({ filename: 'report.pdf' });  // pulsar-files skill
+  const filePath = await pulsar.saveAs({ filename: 'report.pdf' });  // `pulsar-files` skill
   const reportId = await pulsar.createServiceReportFromFilePath(
     serviceAppointmentId, filePath, templateId, 'report.pdf', 'application/pdf');
 } catch (err) { console.error('Service report failed:', err.message); }
@@ -104,7 +142,7 @@ if (pulsar.pulsar) pulsar.pulsar.goHome();  // SDK gap: SFS shell fn, embedded c
 | --- | --- | --- |
 | Tab bar | `pulsar.fsl.layout.tabs` | Verbatim: "You **must** add all tabs that you wish to see on the tab bar to this setting. Failure to add a tab will exclude it from the app. This includes the standard SFS tabs." 4th entry onward lands in the "More" modal |
 | Card on an object page | `pulsar.fsl.{objectType}.{recordType}.order` | Defines ALL cards for that pair — "Failure to include a card in the value of the setting will result in it not being displayed" |
-| Lightning Bolt Menu | `pulsar.fsl.layout.{objectType}.{recordType}.lightningbolt.listitems` | Value is PSL ending in a SetResult (see the pulsar-psl skill); `custom : label : DocId [: params]` entries |
+| Lightning Bolt Menu | `pulsar.fsl.layout.{objectType}.{recordType}.lightningbolt.listitems` | Value is PSL ending in a SetResult (see the `pulsar-psl` skill); `custom : label : DocId [: params]` entries |
 | Native detail-screen toolbar | `pulsar.layout.toolbar.fslVisibleItems` | SFS hides most native toolbar buttons by default; enable `documents` to expose doclist-launched apps |
 
 - Custom-document query parameters (`label : docId : key=value&…`) require **Pulsar 15.0+**
@@ -117,7 +155,7 @@ if (pulsar.pulsar) pulsar.pulsar.goHome();  // SDK gap: SFS shell fn, embedded c
   `ref_id` instead — `create-pulsarapp`.)
 - Pages opened from the Schedule calendar have **ServiceAppointment** as their primary object
   context even when they display Work Order data — scope LBM settings accordingly (`parent`
-  entries; details in references).
+  entries; details in `references/sfs-customization-reference.md`).
 
 ## Org configuration your app depends on
 
